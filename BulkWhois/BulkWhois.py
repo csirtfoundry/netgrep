@@ -1,7 +1,7 @@
 __all__ = ('BulkWhois')
 
-import socket
 import string
+import telnetlib
 
 class BulkWhois:
     leader = ""
@@ -26,19 +26,10 @@ class BulkWhois:
         result = ""
 
         try:
-            af, socktype, proto, canonname, sa = socket.getaddrinfo(
-                self.server, self.port)[0]
-                
-            sock = socket.socket()
-            sock.connect(sa)
-            sock.sendall(self.format_list(ip_list))
-            while True:
-                chunk = sock.recv(1024)
-                if chunk == "":
-                    break
-                print "Chunk: " + chunk
-                result = result + chunk
-            sock.close()
+            tn = telnetlib.Telnet(self.server, self.port)   
+            
+            tn.write(self.format_list(ip_list))
+            result = tn.read_all()
             print result
 
         except BufferError as e:
