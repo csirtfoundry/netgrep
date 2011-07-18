@@ -1,0 +1,48 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import argparse
+from abusefeedfilter.feedfilter import FeedFilter
+
+def get_args():
+    parser = argparse.ArgumentParser(description="Filter records based on IPs\
+                                                  or ASNs from a file")
+    parser.add_argument('--filter', required=True,
+                        help="Define the country codes and ASes you want to  \
+                              filter on.\
+                              Use comma separators with no spaces.\
+                              e.g. AS345,AS234,JP")
+    parser.add_argument('--format', choices=['CSV','TSV','delim','XML'], 
+                        required=True,
+                        help="Format of input file: delimited with one record \
+                              per line, or XML with records across multiple \
+                              lines")
+    parser.add_argument('--delim', 
+                        help="If you have a delimited file, specify the \
+                              delimeter e.g. | ")
+    parser.add_argument('--xml_record_delim', 
+                        help="For XML files, which field starts and ends a \
+                              record?")
+    parser.add_argument('--ignore_field_num',  
+                        help="Specify the delimited field number (starting \
+                              from 0) which contains IP addresses you don't \
+                              want to filter in, e.g. your sensor IP.")
+    parser.add_argument('--xml_ignore_field', 
+                        help="Specify an XML field which you don't want to \
+                              filter in e.g. your sensor IP")
+    parser.add_argument('--has_header', action="store_true",
+                        help="Ignore the first line as a header.")
+    parser.add_argument('--file', type=argparse.FileType("r"), required=True,
+                        help="The file you'd like to read in.")
+  
+    args = parser.parse_args()
+    return args
+
+def main():
+    args = get_args()
+    feedfilter = FeedFilter(args)
+    feedfilter.process_file()
+
+if __name__ == "__main__":
+    main()
+
