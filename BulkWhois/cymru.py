@@ -9,6 +9,7 @@ class BulkWhoisCymru(BulkWhois):
             self.server = "asn.cymru.com"
             self.leader = "begin\nverbose"
             self.has_result_header = True
+            self.field_names=["asn", "ip", "bgp_prefix", "cc", "registry", "allocated", "as_name"]
 
 if __name__ == "__main__":
     lookups = ["201.21.203.254", "192.168.0.10", "203.20.1.2"]
@@ -18,5 +19,5 @@ if __name__ == "__main__":
     print "Leader: " + bw.leader
     print "Footer: " + bw.footer
     print bw.raw_lookup(lookups)
-    print bw.get_records(lookups)
+    print bw.get_records_by_ip(lookups)
 
