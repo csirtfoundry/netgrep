@@ -62,9 +62,11 @@ class BulkWhois(object):
             if line_num == 0 and self.has_result_header:
                 next
 
-            for field in self.field_delim.split(line):
-                record
-
+            for field_num, field in enumerate(self.field_delim.split(line)):
+                if self.fields and length(self.fields) > field_num:
+                    records.get(self.fields[field_num], field)
+                else
+                    records.get(field_num, field)
 
     def _format_list(self, ip_list):
         return self.record_delim.join([self.leader, self.record_delim.join(ip_list), \
@@ -75,9 +77,10 @@ if __name__ == "__main__":
     lookups = ["201.21.203.254", "192.168.0.10", "203.20.1.2"]
     bw = BulkWhois(leader="begin origin")
     print bw.raw_lookup(lookups)
+    print bw.get_records(lookups)
 
     bw2 = BulkWhois(leader="begin\nverbose", server="asn.cymru.com")
     print bw2.raw_lookup(lookups)
-
+    print bw2.get_records()
 
 
