@@ -36,10 +36,9 @@ class NetObjectRepo:
             raise TypeError, "datatype must be of 'ip' or 'domain'"
 
     def belongs_to(self, datatype="", data="", asn_filters=None, cc_filters=None):
-        print "Belong to"
         if not data:
             raise TypeError, "Data cannot be empty"
-        print data, asn_filters, cc_filters
+        
         if datatype == "ip":
             return self.ip_belongs_to(data, asn_filters, cc_filters)
         elif datatype == "domain":
@@ -59,11 +58,30 @@ class NetObjectRepo:
             query = query + " cc in (" + ', '.join('?' for cc_filter in cc_filters) + ")"
             params.extend(cc_filters)
         query = query + ")"
-        print query
-        print params
         rows = list(self.db.execute(query, params))
-        print rows
-        print len(rows)
+        return len(rows) >= 1
+
+    def domain_belongs_to(self, domain, asn_filters, cc_filters):
+        #print "Looking for %s" % domain
+        query = "SELECT d.id FROM domains d, ips i, domain_ips di WHERE d.domain = ? AND"
+        params = [domain]
+        query = query + " d.id = di.domain_id AND i.id = di.ip_id AND"
+        
+        query = query + " ("
+        if isinstance(asn_filters, list):
+            query = query + " i.asn in (" + ', '.join('?' for asn_filter in asn_filters) + ")"
+            params.extend(asn_filters)
+        if isinstance(cc_filters, list):
+            if params:
+                query = query + " OR "
+            query = query + " i.cc in (" + ', '.join('?' for cc_filter in cc_filters) + ")"
+            params.extend(cc_filters)
+        query = query + ")"
+        
+        #print(query)
+        rows = list(self.db.execute(query, params))
+        #for row in rows:
+        #    print row
         return len(rows) >= 1
 
     def get_ip_data(self):
@@ -96,7 +114,6 @@ class NetObjectRepo:
         ip_id = self.add_ip(ip)
         domain_id = self.add_domain(domain)
 
-        print ip_id, domain_id
         self.db.execute("INSERT INTO domain_ips (domain_id, ip_id) VALUES (?, ?)", 
                         [domain_id, ip_id])
 
@@ -119,6 +136,7 @@ class FeedFilter:
     header = False
     infile = None
     outfile = None
+    verbose = False
 
     matchers = {}
     repo = NetObjectRepo()
@@ -141,9 +159,14 @@ class FeedFilter:
 
         self.parse_args(args)
 
+    def _vprint(self, line):
+        if self.verbose:
+            sys.stderr.write("**" + str(line) + "\n")
+
     def parse_args(self, args):
         self.infile = args.infile
         self.outfile = args.outfile
+        self.verbose = args.verbose
         
         if args.format == "CSV":
             self.delim = ","
@@ -159,13 +182,12 @@ class FeedFilter:
 
     def domains_to_ips(self):
 
-        print [domain_data["domain"] for domain_data in self.repo.get_domain_data()]
         ar = AsyncResolver([domain_data["domain"] for domain_data in self.repo.get_domain_data()])
         resolved = ar.resolve()
 
         for host, ip in resolved.items():
               if ip is None:
-                  sys.stderr.write("%s could not be resolved.\n" % host)
+                  self._vprint("%s could not be resolved." % host)
               else:
                   self.repo.add_domain_ip(host, ip)
 
@@ -183,14 +205,22 @@ class FeedFilter:
     def filter_matches(self):
         # TODO: this doesn't work for stdin! Need to write to temp file?
         self.infile.seek(0)
-        readin = csv.reader(self.infile, delimiter=self.delim)
-        
-        for line in reader:
-            for cell in line:
+        #readin = csv.reader(self.infile, delimiter=self.delim)
+
+        for line in self.infile.readlines():
+            self._vprint("=====")
+            self._vprint("Orig: " + line)
+            for cell in list(csv.reader([line], delimiter=self.delim))[0]:
                 for m_key, m_dict in self.matchers.items():
                     if "chk_func" in m_dict and m_dict["chk_func"](cell):
-                        if self.repo.belongs_to(datatype=m_dict["type"], data=cell, asn_filters=[32400], cc_filters=['AU', 'IT']):
-                            print line
+                        if self.repo.belongs_to(datatype=m_dict["type"], data=cell, asn_filters=[32400], cc_filters=['AU', 'DE']):
+                            self._vprint("'%s' matched a filter" % (cell))
+                            self.outfile.write(line)
+                    elif "rex" in m_dict:
+                        for m in re.findall(m_dict["rex"], cell):
+                            if self.repo.belongs_to(datatype=m_dict["type"], data=m, asn_filters=[32400], cc_filters=['AU', 'DE']):
+                                self._vprint("'%s' matched a filter" % (cell))
+                                self.outfile.write(line)
 
     def _is_valid_ip(self, ip):
         for family in (socket.AF_INET, socket.AF_INET6):
@@ -224,8 +254,7 @@ class FeedFilter:
         self.domains_to_ips()
         self.add_asn_cc_info()
         self.filter_matches()
-        #self.repo.dump()
-        print self.found
+        self.repo.dump()
 
 if __name__ == "__main__":
     feedfilter = FeedFilter({})
