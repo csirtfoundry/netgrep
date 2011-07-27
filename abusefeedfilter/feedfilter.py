@@ -9,6 +9,8 @@ import sqlite3
 import sys
 from bulkwhois.cymru import BulkWhoisCymru
 from async_dns import AsyncResolver
+import publicsuffix.publicsuffix as publicsuffix
+import httplib2
 #import XMLFilter from xml_filter
 
 class NetObjectRepo:
@@ -53,7 +55,7 @@ class NetObjectRepo:
             query = query + " asn in (" + ', '.join('?' for asn_filter in asn_filters) + ")"
             params.extend(asn_filters)
         if isinstance(cc_filters, list):
-            if params:
+            if len(params) > 1: # has ip + 1 or more asns
                 query = query + " OR "
             query = query + " cc in (" + ', '.join('?' for cc_filter in cc_filters) + ")"
             params.extend(cc_filters)
@@ -72,7 +74,7 @@ class NetObjectRepo:
             query = query + " i.asn in (" + ', '.join('?' for asn_filter in asn_filters) + ")"
             params.extend(asn_filters)
         if isinstance(cc_filters, list):
-            if params:
+            if len(params) > 1: # has ip + 1 or more asns
                 query = query + " OR "
             query = query + " i.cc in (" + ', '.join('?' for cc_filter in cc_filters) + ")"
             params.extend(cc_filters)
@@ -80,8 +82,6 @@ class NetObjectRepo:
         
         #print(query)
         rows = list(self.db.execute(query, params))
-        #for row in rows:
-        #    print row
         return len(rows) >= 1
 
     def get_ip_data(self):
@@ -154,8 +154,17 @@ class FeedFilter:
         self.matchers["url"] = {
             "rex": "(?:(?:https?|ftp)://)([^\/\s]+)",
             "type": "domain",
-            "needs_resolution": True,
         }
+        self.matchers["domain"] = {
+            "rex": "^(.*\w\.\w.*)$",
+            "chk_func": self._is_valid_domain,
+            "type": "domain",
+        }
+
+        self.psl = publicsuffix.public_suffix_list(
+            http=httplib2.Http('/tmp/'),
+            headers={'cache-control': 'max-age=%d' % (60*60*24)}
+        )
 
         self.parse_args(args)
 
@@ -212,15 +221,29 @@ class FeedFilter:
             self._vprint("Orig: " + line)
             for cell in list(csv.reader([line], delimiter=self.delim))[0]:
                 for m_key, m_dict in self.matchers.items():
-                    if "chk_func" in m_dict and m_dict["chk_func"](cell):
-                        if self.repo.belongs_to(datatype=m_dict["type"], data=cell, asn_filters=[32400], cc_filters=['AU', 'DE']):
+                    match_vals = []
+                    if "chk_func" in m_dict and "rex" in m_dict:
+                        for m in re.findall(m_dict["rex"], cell):
+                            if self.repo.belongs_to(datatype=m_dict["type"], data=cell, asn_filters=[32400], cc_filters=['BR']):
+                    elif "chk_func" in m_dict and m_dict["chk_func"](cell):
+                        if self.repo.belongs_to(datatype=m_dict["type"], data=cell, asn_filters=[32400], cc_filters=['BR']):
                             self._vprint("'%s' matched a filter" % (cell))
                             self.outfile.write(line)
                     elif "rex" in m_dict:
                         for m in re.findall(m_dict["rex"], cell):
-                            if self.repo.belongs_to(datatype=m_dict["type"], data=m, asn_filters=[32400], cc_filters=['AU', 'DE']):
+                            if self.repo.belongs_to(datatype=m_dict["type"], data=m, cc_filters=['US']):
                                 self._vprint("'%s' matched a filter" % (cell))
                                 self.outfile.write(line)
+                    if match:
+                        self._vprint("'%s' matched a filter" % (cell))
+                        self.outfile.write(line)
+
+
+    def _is_valid_domain(self, domain):
+        if not str(domain):
+            return None
+        else:
+            return self.psl.domain(domain)
 
     def _is_valid_ip(self, ip):
         for family in (socket.AF_INET, socket.AF_INET6):
@@ -254,7 +277,7 @@ class FeedFilter:
         self.domains_to_ips()
         self.add_asn_cc_info()
         self.filter_matches()
-        self.repo.dump()
+        #self.repo.dump()
 
 if __name__ == "__main__":
     feedfilter = FeedFilter({})
