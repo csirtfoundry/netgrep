@@ -11,6 +11,7 @@ from bulkwhois.cymru import BulkWhoisCymru
 from async_dns import AsyncResolver
 import publicsuffix.publicsuffix as publicsuffix
 import httplib2
+import tempfile
 #import XMLFilter from xml_filter
 
 class NetObjectRepo:
@@ -161,7 +162,7 @@ class FeedFilter:
 
         # download the public suffix list or access cache in /tmp
         self.psl = publicsuffix.public_suffix_list(
-            http=httplib2.Http('/tmp/'),
+            http=httplib2.Http(tempfile.gettempdir()),
             headers={'cache-control': 'max-age=%d' % (60*60*24)}
         )
 
