@@ -51,10 +51,10 @@ class NetObjectRepo:
     def ip_belongs_to(self, ip, asn_filters, cc_filters):
         query = "SELECT id FROM ips WHERE ip = ? AND ("
         params = [ip]
-        if isinstance(asn_filters, list):
+        if isinstance(asn_filters, list) and asn_filters:
             query = query + " asn in (" + ', '.join('?' for asn_filter in asn_filters) + ")"
             params.extend(asn_filters)
-        if isinstance(cc_filters, list):
+        if isinstance(cc_filters, list) and cc_filters:
             if len(params) > 1: # has ip + 1 or more asns
                 query = query + " OR "
             query = query + " cc in (" + ', '.join('?' for cc_filter in cc_filters) + ")"
@@ -70,17 +70,16 @@ class NetObjectRepo:
         query = query + " d.id = di.domain_id AND i.id = di.ip_id AND"
         
         query = query + " ("
-        if isinstance(asn_filters, list):
+        if isinstance(asn_filters, list) and asn_filters:
             query = query + " i.asn in (" + ', '.join('?' for asn_filter in asn_filters) + ")"
             params.extend(asn_filters)
-        if isinstance(cc_filters, list):
+        if isinstance(cc_filters, list) and cc_filters:
             if len(params) > 1: # has ip + 1 or more asns
                 query = query + " OR "
             query = query + " i.cc in (" + ', '.join('?' for cc_filter in cc_filters) + ")"
             params.extend(cc_filters)
         query = query + ")"
         
-        #print(query)
         rows = list(self.db.execute(query, params))
         return len(rows) >= 1
 
@@ -116,7 +115,6 @@ class NetObjectRepo:
 
         self.db.execute("INSERT INTO domain_ips (domain_id, ip_id) VALUES (?, ?)", 
                         [domain_id, ip_id])
-
 
     def dump(self):
         for line in self.db.iterdump():
@@ -155,12 +153,13 @@ class FeedFilter:
             "rex": "(?:(?:https?|ftp)://)([^\/\s]+)",
             "type": "domain",
         }
-        self.matchers["domain"] = {
-            "rex": "^(.*\w\.\w.*)$",
+        self.matchers["hostname"] = {
+            "rex": "^([a-zA-Z0-9\-\.]*\.[0-9a-zA-Z\-\.]*)$",
             "chk_func": self._is_valid_domain,
             "type": "domain",
         }
 
+        # download the public suffix list or access cache in /tmp
         self.psl = publicsuffix.public_suffix_list(
             http=httplib2.Http('/tmp/'),
             headers={'cache-control': 'max-age=%d' % (60*60*24)}
@@ -184,10 +183,15 @@ class FeedFilter:
         elif args.format == "delim":
             self.delim = args.delim
 
-        for m in re.findall("AS\d+", args.filter):
-            self.asn_filters.append(m)
-        for m in re.findall("[A-Za-z]{2,3}[^\d]", args.filter):
-            self.cc_filters.append(m)
+        for filt in args.filter.split(','):
+            for m in re.findall("^(?:AS)?(\d+)$", filt):
+                self.asn_filters.append(m)
+            for m in re.findall("^[A-Za-z]+$", filt):
+                self.cc_filters.append(m)
+
+        print self.asn_filters, self.cc_filters
+        if len(self.asn_filters) == 0 and  len(self.cc_filters) == -1:
+            raise ValueError, "You need to specify at least one valid filter. e.g. AS254,JP,AU"
 
     def domains_to_ips(self):
 
@@ -199,13 +203,18 @@ class FeedFilter:
                   self._vprint("%s could not be resolved." % host)
               else:
                   self.repo.add_domain_ip(host, ip)
-
+    
     def extract_matches(self):
         reader = csv.reader(self.infile, delimiter=self.delim)
         for line in reader:
             for cell in line:
+                cell = cell.strip()
                 for m_key, m_dict in self.matchers.items():
-                    if "chk_func" in m_dict and m_dict["chk_func"](cell):
+                    if "chk_func" in m_dict and "rex" in m_dict:
+                        for m in re.findall(m_dict["rex"], cell):
+                            if m_dict["chk_func"](m):
+                                self.repo.add(m_dict["type"], m)
+                    elif "chk_func" in m_dict and m_dict["chk_func"](cell):
                         self.repo.add(m_dict["type"], cell)
                     elif "rex" in m_dict:
                         for m in re.findall(m_dict["rex"], cell):
@@ -217,30 +226,42 @@ class FeedFilter:
         #readin = csv.reader(self.infile, delimiter=self.delim)
 
         for line in self.infile.readlines():
+            print_line = False
             self._vprint("=====")
             self._vprint("Orig: " + line)
             for cell in list(csv.reader([line], delimiter=self.delim))[0]:
+                cell = cell.strip()
                 for m_key, m_dict in self.matchers.items():
-                    match_vals = []
                     if "chk_func" in m_dict and "rex" in m_dict:
                         for m in re.findall(m_dict["rex"], cell):
-                            if self.repo.belongs_to(datatype=m_dict["type"], data=cell, asn_filters=[32400], cc_filters=['BR']):
+                            if m_dict["chk_func"](m):
+                                if self.repo.belongs_to(datatype=m_dict["type"], data=m, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
+                                    print_line = True
+                                    break
                     elif "chk_func" in m_dict and m_dict["chk_func"](cell):
-                        if self.repo.belongs_to(datatype=m_dict["type"], data=cell, asn_filters=[32400], cc_filters=['BR']):
+                        if self.repo.belongs_to(datatype=m_dict["type"], data=cell, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
                             self._vprint("'%s' matched a filter" % (cell))
-                            self.outfile.write(line)
+                            print_line = True
                     elif "rex" in m_dict:
                         for m in re.findall(m_dict["rex"], cell):
-                            if self.repo.belongs_to(datatype=m_dict["type"], data=m, cc_filters=['US']):
+                            if self.repo.belongs_to(datatype=m_dict["type"], data=m, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
                                 self._vprint("'%s' matched a filter" % (cell))
-                                self.outfile.write(line)
-                    if match:
-                        self._vprint("'%s' matched a filter" % (cell))
-                        self.outfile.write(line)
+                                print_line = True
+                                break
+
+                    if print_line:
+                        break
+                if print_line:
+                    break
+            if print_line == True:
+                self.outfile.write(line)
 
 
     def _is_valid_domain(self, domain):
         if not str(domain):
+            return None
+        # don't want / need to resolve IPs
+        elif self._is_valid_ip(domain):
             return None
         else:
             return self.psl.domain(domain)
