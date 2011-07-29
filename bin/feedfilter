@@ -32,7 +32,7 @@ def get_args():
                         help="Specify an XML field which you don't want to \
                               filter in e.g. your sensor IP")
     parser.add_argument('--has_header', action="store_true",
-                        help="Ignore the first line as a header.")
+                        help="First line is a header, don't filter out.")
     parser.add_argument('--infile', type=argparse.FileType("r"), default=sys.stdin,
                         help="The file you'd like to read in. Default is stdin.")
     parser.add_argument('--outfile', type=argparse.FileType("w"), default=sys.stdout,

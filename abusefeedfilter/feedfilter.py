@@ -65,7 +65,6 @@ class NetObjectRepo:
         return len(rows) >= 1
 
     def domain_belongs_to(self, domain, asn_filters, cc_filters):
-        #print "Looking for %s" % domain
         query = "SELECT d.id FROM domains d, ips i, domain_ips di WHERE d.domain = ? AND"
         params = [domain]
         query = query + " d.id = di.domain_id AND i.id = di.ip_id AND"
@@ -87,6 +86,9 @@ class NetObjectRepo:
     def get_ip_data(self):
         for row in self.db.execute("SELECT * FROM ips"):
             yield(row)
+
+    def get_ip_count(self):
+        return self.db.execute("SELECT count(id) as ipcount from ips").fetchone()["ipcount"]
 
     def add_ip(self, ip):
         ip_query = "SELECT id from ips WHERE ip = ?"
@@ -132,7 +134,7 @@ class FeedFilter:
     asn_filters = []
     format = None
     ignore_field = None
-    header = False
+    has_header = False
     infile = None
     outfile = None
     verbose = False
@@ -176,7 +178,8 @@ class FeedFilter:
         self.infile = args.infile
         self.outfile = args.outfile
         self.verbose = args.verbose
-        
+        self.has_header = args.has_header
+
         if args.format == "CSV":
             self.delim = ","
         elif args.format == "TSV":
@@ -190,12 +193,11 @@ class FeedFilter:
             for m in re.findall("^[A-Za-z]+$", filt):
                 self.cc_filters.append(m)
 
-        print self.asn_filters, self.cc_filters
+        self._vprint("Using filters: ASN %s, CC %s" % (", ".join(self.asn_filters), ", ".join(self.cc_filters)))
         if len(self.asn_filters) == 0 and  len(self.cc_filters) == -1:
             raise ValueError, "You need to specify at least one valid filter. e.g. AS254,JP,AU"
 
     def domains_to_ips(self):
-
         ar = AsyncResolver([domain_data["domain"] for domain_data in self.repo.get_domain_data()])
         resolved = ar.resolve()
 
@@ -207,7 +209,10 @@ class FeedFilter:
     
     def extract_matches(self):
         reader = csv.reader(self.infile, delimiter=self.delim)
-        for line in reader:
+        for linenum, line in enumerate(reader):
+            # no need to parse a header line
+            if self.has_header and linenum == 0:
+                pass
             for cell in line:
                 cell = cell.strip()
                 for m_key, m_dict in self.matchers.items():
@@ -221,15 +226,17 @@ class FeedFilter:
                         for m in re.findall(m_dict["rex"], cell):
                             self.repo.add(m_dict["type"], m)
 
-    def filter_matches(self):
+    def filter_print_matches(self):
+        header_line = None
         # TODO: this doesn't work for stdin! Need to write to temp file?
         self.infile.seek(0)
         #readin = csv.reader(self.infile, delimiter=self.delim)
-
-        for line in self.infile.readlines():
+        for linenum, line in enumerate(self.infile.readlines()):
             print_line = False
-            self._vprint("=====")
-            self._vprint("Orig: " + line)
+            if self.has_header and linenum == 0:
+                header_line = line
+                continue
+            self._vprint("====\nOrig: " + line)
             for cell in list(csv.reader([line], delimiter=self.delim))[0]:
                 cell = cell.strip()
                 for m_key, m_dict in self.matchers.items():
@@ -255,6 +262,9 @@ class FeedFilter:
                 if print_line:
                     break
             if print_line == True:
+                if header_line:
+                    self.outfile.write(header_line)
+                    header_line = None
                 self.outfile.write(line)
 
 
@@ -295,10 +305,10 @@ class FeedFilter:
                 self.repo.add_ip_asn_cc(ip, asn=asn_info[ip]["asn"], cc=asn_info[ip]["cc"])
 
     def process_file(self):
-        self.found = self.extract_matches()
+        self.extract_matches()
         self.domains_to_ips()
         self.add_asn_cc_info()
-        self.filter_matches()
+        self.filter_print_matches()
         #self.repo.dump()
 
 if __name__ == "__main__":
