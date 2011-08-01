@@ -12,7 +12,6 @@ from async_dns import AsyncResolver
 import publicsuffix.publicsuffix as publicsuffix
 import httplib2
 import tempfile
-#import XMLFilter from xml_filter
 
 class NetObjectRepo:
     db = None
@@ -28,7 +27,6 @@ class NetObjectRepo:
                     domain varchar unique, cc varchar)")
         self.db.execute("CREATE TABLE domain_ips (ip_id integer, \
                     domain_id integer)")
-        self.db.execute("CREATE TABLE text_refs (id integer unique, text varchar)")
 
     def add(self, datatype="", data=""):
         if datatype == "ip":
@@ -138,6 +136,7 @@ class FeedFilter:
     infile = None
     outfile = None
     verbose = False
+    quiet = False
 
     matchers = {}
     repo = NetObjectRepo()
@@ -153,7 +152,7 @@ class FeedFilter:
             "type": "ip",
         }
         self.matchers["url"] = {
-            "rex": "(?:(?:https?|ftp)://)([^\/\s]+)",
+            "rex": "(?:(?:\w+)://)([^\/\s]+)",
             "type": "domain",
         }
         self.matchers["hostname"] = {
@@ -174,11 +173,28 @@ class FeedFilter:
         if self.verbose:
             sys.stderr.write("**" + str(line) + "\n")
 
+    def _qprint(self, line):
+        if not self.quiet:
+            sys.stderr.write(line + "\n")
+
     def parse_args(self, args):
-        self.infile = args.infile
+        
+        def create_stdin_temp_file():
+            f = tempfile.NamedTemporaryFile()
+            for line in sys.stdin.read():
+                f.write(line)
+            # TODO: according to docs, a second open won't work on Win
+            return open(f.name, "r")
+
         self.outfile = args.outfile
         self.verbose = args.verbose
+        self.quiet = args.quiet
         self.has_header = args.has_header
+
+        if not args.infile:
+            self.infile = create_stdin_temp_file()
+        else:
+            self.infile = args.infile
 
         if args.format == "CSV":
             self.delim = ","
@@ -193,7 +209,12 @@ class FeedFilter:
             for m in re.findall("^[A-Za-z]+$", filt):
                 self.cc_filters.append(m)
 
-        self._vprint("Using filters: ASN %s, CC %s" % (", ".join(self.asn_filters), ", ".join(self.cc_filters)))
+        self._qprint("Using filters: ")
+
+        if self.asn_filters:
+            self._qprint("  ASN: %s" % (", ".join(self.asn_filters)))
+        if self.cc_filters:
+            self._qprint("  Country codes: %s" % (", ".join(self.cc_filters)))
         if len(self.asn_filters) == 0 and  len(self.cc_filters) == -1:
             raise ValueError, "You need to specify at least one valid filter. e.g. AS254,JP,AU"
 
@@ -209,58 +230,65 @@ class FeedFilter:
     
     def extract_matches(self):
         reader = csv.reader(self.infile, delimiter=self.delim)
-        for linenum, line in enumerate(reader):
-            # no need to parse a header line
-            if self.has_header and linenum == 0:
-                pass
-            for cell in line:
-                cell = cell.strip()
-                for m_key, m_dict in self.matchers.items():
-                    if "chk_func" in m_dict and "rex" in m_dict:
-                        for m in re.findall(m_dict["rex"], cell):
-                            if m_dict["chk_func"](m):
+        try:
+            for linenum, line in enumerate(reader):
+                # no need to parse a header line
+                if self.has_header and linenum == 0:
+                    pass
+                for cell in line:
+                    self._vprint(cell)
+                    cell = cell.strip()
+                    for m_key, m_dict in self.matchers.items():
+                        if "chk_func" in m_dict and "rex" in m_dict:
+                            for m in re.findall(m_dict["rex"], cell):
+                                if m_dict["chk_func"](m):
+                                    self.repo.add(m_dict["type"], m)
+                        elif "chk_func" in m_dict and m_dict["chk_func"](cell):
+                            self.repo.add(m_dict["type"], cell)
+                        elif "rex" in m_dict:
+                            for m in re.findall(m_dict["rex"], cell):
                                 self.repo.add(m_dict["type"], m)
-                    elif "chk_func" in m_dict and m_dict["chk_func"](cell):
-                        self.repo.add(m_dict["type"], cell)
-                    elif "rex" in m_dict:
-                        for m in re.findall(m_dict["rex"], cell):
-                            self.repo.add(m_dict["type"], m)
+        except csv.Error as e:
+            self._qprint("CSV parse error, skipping")
 
     def filter_print_matches(self):
         header_line = None
-        # TODO: this doesn't work for stdin! Need to write to temp file?
         self.infile.seek(0)
-        #readin = csv.reader(self.infile, delimiter=self.delim)
+        
         for linenum, line in enumerate(self.infile.readlines()):
             print_line = False
             if self.has_header and linenum == 0:
                 header_line = line
                 continue
             self._vprint("====\nOrig: " + line)
-            for cell in list(csv.reader([line], delimiter=self.delim))[0]:
-                cell = cell.strip()
-                for m_key, m_dict in self.matchers.items():
-                    if "chk_func" in m_dict and "rex" in m_dict:
-                        for m in re.findall(m_dict["rex"], cell):
-                            if m_dict["chk_func"](m):
-                                if self.repo.belongs_to(datatype=m_dict["type"], data=m, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
-                                    print_line = True
-                                    break
-                    elif "chk_func" in m_dict and m_dict["chk_func"](cell):
-                        if self.repo.belongs_to(datatype=m_dict["type"], data=cell, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
-                            self._vprint("'%s' matched a filter" % (cell))
-                            print_line = True
-                    elif "rex" in m_dict:
-                        for m in re.findall(m_dict["rex"], cell):
-                            if self.repo.belongs_to(datatype=m_dict["type"], data=m, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
+            try:
+                for cell in list(csv.reader([line], delimiter=self.delim))[0]:
+                    cell = cell.strip()
+                    for m_key, m_dict in self.matchers.items():
+                        if "chk_func" in m_dict and "rex" in m_dict:
+                            for m in re.findall(m_dict["rex"], cell):
+                                if m_dict["chk_func"](m):
+                                    if self.repo.belongs_to(datatype=m_dict["type"], data=m, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
+                                        print_line = True
+                                        break
+                        elif "chk_func" in m_dict and m_dict["chk_func"](cell):
+                            if self.repo.belongs_to(datatype=m_dict["type"], data=cell, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
                                 self._vprint("'%s' matched a filter" % (cell))
                                 print_line = True
-                                break
+                        elif "rex" in m_dict:
+                            for m in re.findall(m_dict["rex"], cell):
+                                if self.repo.belongs_to(datatype=m_dict["type"], data=m, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
+                                    self._vprint("'%s' matched a filter" % (cell))
+                                    print_line = True
+                                    break
 
+                        if print_line:
+                            break
                     if print_line:
                         break
-                if print_line:
-                    break
+            except csv.Error as e:
+                self._vprint("CSV parse error, skipping")
+
             if print_line == True:
                 if header_line:
                     self.outfile.write(header_line)
