@@ -9,7 +9,8 @@ import sqlite3
 import sys
 from bulkwhois.cymru import BulkWhoisCymru
 from async_dns import AsyncResolver
-import publicsuffix.publicsuffix as publicsuffix
+#import publicsuffix.publicsuffix as publicsuffix
+from publicsuffix import PublicSuffixList
 import httplib2
 import tempfile
 
@@ -179,10 +180,11 @@ class FeedFilter:
         }
 
         # download the public suffix list or access cache in /tmp
-        self.psl = publicsuffix.public_suffix_list(
-            http=httplib2.Http(tempfile.gettempdir()),
-            headers={'cache-control': 'max-age=%d' % (60*60*24)}
-        )
+        #self.psl = publicsuffix.public_suffix_list(
+        #    http=httplib2.Http(tempfile.gettempdir()),
+        #    headers={'cache-control': 'max-age=%d' % (60*60*24)}
+        #)
+        self.psl = PublicSuffixList(self._get_psl_file())
 
         self.parse_args(args)
 
@@ -193,6 +195,13 @@ class FeedFilter:
     def _qprint(self, line):
         if not self.quiet:
             sys.stderr.write(line + "\n")
+
+    def _get_psl_file(self):
+        url = 'http://mxr.mozilla.org/mozilla-central/source/netwerk/dns/effective_tld_names.dat?raw=1'
+        headers = {'cache-control': 'max-age=%d' % (60*60*24)}
+        http = httplib2.Http(tempfile.gettempdir())
+        response, content = http.request(url, headers=headers)
+        return content
 
     def parse_args(self, args):
         
@@ -237,8 +246,8 @@ class FeedFilter:
             self._qprint("  Country codes: %s" % (", ".join(self.cc_filters)))
 
     def domains_to_ips(self):
-        for domain_data in self.repo.get_domain_data():
-            print domain_data
+        #for domain_data in self.repo.get_domain_data():
+        #    print domain_data
         ar = AsyncResolver([domain_data["domain"] for domain_data in self.repo.get_domain_data()])
         resolved = ar.resolve()
 
@@ -323,10 +332,12 @@ class FeedFilter:
         elif self._is_valid_ip(domain):
             return None
         else:
-            return self.psl.tld(domain)
+            # using this PSL, known TLDs return at least one .
+            return self._get_tld(domain).find(".") >= 0
+
 
     def _get_tld(self, domain):
-        return self._is_valid_domain(domain)
+        return self.psl.get_public_suffix(domain)
 
     def _is_valid_ip(self, ip):
         for family in (socket.AF_INET, socket.AF_INET6):
