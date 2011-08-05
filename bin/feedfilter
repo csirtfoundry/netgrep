@@ -11,18 +11,19 @@ def get_args():
                              Simple usage: cat mylog | %s --filter AU,AS1111 \
                              --format CSV" % __file__)
     parser.add_argument('--filter', required=True,
-                        help="Define the country codes and ASes you want to  \
-                              filter on.\
+                        help="List the country codes and ASes you want to  \
+                              find in the file.\
                               Use comma separators with no spaces.\
-                              e.g. AS345,AS234,JP")
-    parser.add_argument('--format', choices=['CSV','TSV','delim','XML'], 
+                              e.g. AS345,AS234,JP,AU. Country codes should \
+                              match those used by Cymry bulk whois: \
+                              http://www.team-cymru.org/Services/ip-to-asn.html")
+    parser.add_argument('--format', choices=['CSV','TSV','delim'], 
                         required=True,
-                        help="Format of input file: delimited with one record \
-                              per line, or XML with records across multiple \
-                              lines")
+                        help="Format of input file: chose CSV, TSV or specify \
+                              delim with --delim=x for a custom delimiter")
     parser.add_argument('--delim', 
                         help="If you have a delimited file, specify the \
-                              delimeter e.g. | ")
+                              delimeter e.g. \| ")
     #parser.add_argument('--xml_record_delim', 
     #                    help="For XML files, which field starts and ends a \
     #                          record?")

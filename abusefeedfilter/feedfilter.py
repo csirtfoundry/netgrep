@@ -63,7 +63,7 @@ class NetObjectRepo:
         return len(rows) >= 1
 
     def domain_belongs_to(self, domain, asn_filters, cc_filters):
-        query = "SELECT d.id FROM domains d, ips i, domain_ips di WHERE d.domain = ? AND"
+        query = "SELECT d.id FROM domains d, ips i, domain_ips di WHERE d.domain = ? AND "
         params = [domain]
         query = query + " d.id = di.domain_id AND i.id = di.ip_id AND"
         
@@ -76,10 +76,11 @@ class NetObjectRepo:
                 query = query + " OR "
             query = query + " i.cc in (" + ', '.join('?' for cc_filter in cc_filters) + ")"
             params.extend(cc_filters)
-        query = query + ")"
         
+        query = query + ")"
         rows = list(self.db.execute(query, params))
-        return len(rows) >= 1
+
+        return len(rows) >= 1 or self.get_domain_tld(domain) in cc_filters
 
     def get_ip_data(self):
         for row in self.db.execute("SELECT * FROM ips"):
@@ -97,18 +98,28 @@ class NetObjectRepo:
 
     def add_ip_asn_cc(self, ip, asn, cc):
         self.add_ip(ip)
-        self.db.execute("UPDATE ips SET asn=?, cc=? where ip=?", [asn, cc, ip])
+        self.db.execute("UPDATE ips SET asn=?, cc=? WHERE ip=?", [asn, cc.upper(), ip])
 
     def get_domain_data(self):
-        for row in self.db.execute("SELECT * from domains"):
+        for row in self.db.execute("SELECT * FROM domains"):
             yield(row)
+
+    def get_domain_count(self):
+        return self.db.execute("SELECT count(id) as domcount from domains").fetchone()["domcount"]
+    
+    def get_domain_tld(self, domain):
+        return self.db.execute("SELECT * from domains WHERE domain = ?", [domain]).fetchone()["cc"]
 
     def add_domain(self, domain, cc=""):
         domain_query = "SELECT id from domains WHERE domain = ?"
         if not list(self.db.execute(domain_query, [domain])):
             self.db.execute("INSERT INTO domains (domain, cc) VALUES (?, ?)", 
-                            [domain, cc])
+                            [domain, cc.upper()])
         return self.db.execute(domain_query, [domain]).fetchone()["id"]
+
+    def add_domain_cc(self, domain, cc):
+        self.add_domain(domain)
+        self.db.execute("UPDATE domains SET cc=? WHERE domain=?", [cc.upper(), domain])
 
     def add_domain_ip(self, domain, ip):
         ip_id = self.add_ip(ip)
@@ -147,6 +158,8 @@ class FeedFilter:
         if type(args) != argparse.Namespace:
             return None
        
+        # regexs are intentionally broad - we'll run more tests later.
+
         self.matchers["ip"] = {
             "chk_func": self._is_valid_ip,
             "type": "ip",
@@ -156,8 +169,12 @@ class FeedFilter:
             "type": "domain",
         }
         self.matchers["hostname"] = {
-            "rex": "^([a-zA-Z0-9\-\.]*\.[0-9a-zA-Z\-\.]*)$",
+            "rex": "^([a-zA-Z0-9\-\.]+\.[0-9a-zA-Z\-\.]+)(?:\d+)?$",
             "chk_func": self._is_valid_domain,
+            "type": "domain",
+        }
+        self.matchers["email"] = {
+            "rex": ".*\@([\w\-\.]+)",
             "type": "domain",
         }
 
@@ -205,20 +222,23 @@ class FeedFilter:
 
         for filt in args.filter.split(','):
             for m in re.findall("^(?:AS)?(\d+)$", filt):
-                self.asn_filters.append(m)
+                self.asn_filters.append(m.upper())
             for m in re.findall("^[A-Za-z]+$", filt):
-                self.cc_filters.append(m)
+                self.cc_filters.append(m.upper())
 
+        if len(self.asn_filters) == 0 and  len(self.cc_filters) == 0:
+            #raise ValueError, "You need to specify at least one valid TLD or ASN filter. e.g. AS254,JP,AU"
+            sys.exit("You need to specify --filter with at least one valid TLD or ASN filter. e.g. AS254,JP,AU")
+        
         self._qprint("Using filters: ")
-
         if self.asn_filters:
             self._qprint("  ASN: %s" % (", ".join(self.asn_filters)))
         if self.cc_filters:
             self._qprint("  Country codes: %s" % (", ".join(self.cc_filters)))
-        if len(self.asn_filters) == 0 and  len(self.cc_filters) == -1:
-            raise ValueError, "You need to specify at least one valid filter. e.g. AS254,JP,AU"
 
     def domains_to_ips(self):
+        for domain_data in self.repo.get_domain_data():
+            print domain_data
         ar = AsyncResolver([domain_data["domain"] for domain_data in self.repo.get_domain_data()])
         resolved = ar.resolve()
 
@@ -260,7 +280,7 @@ class FeedFilter:
             if self.has_header and linenum == 0:
                 header_line = line
                 continue
-            self._vprint("====\nOrig: " + line)
+            #self._vprint("====\nOrig: " + line)
             try:
                 for cell in list(csv.reader([line], delimiter=self.delim))[0]:
                     cell = cell.strip()
@@ -303,7 +323,10 @@ class FeedFilter:
         elif self._is_valid_ip(domain):
             return None
         else:
-            return self.psl.domain(domain)
+            return self.psl.tld(domain)
+
+    def _get_tld(self, domain):
+        return self._is_valid_domain(domain)
 
     def _is_valid_ip(self, ip):
         for family in (socket.AF_INET, socket.AF_INET6):
@@ -332,11 +355,29 @@ class FeedFilter:
                 ip = ip_data["ip"]
                 self.repo.add_ip_asn_cc(ip, asn=asn_info[ip]["asn"], cc=asn_info[ip]["cc"])
 
+    def add_domain_ccs(self):
+        for domain_data in self.repo.get_domain_data():
+            tld = self._get_tld(domain_data["domain"])
+            if tld:
+                self.repo.add_domain_cc(domain_data["domain"], cc=(tld.split(".")[-1]))
+
     def process_file(self):
+        import time
+        stime = time.time()
+        self._qprint("Extracting matches")
         self.extract_matches()
+        print "Got matches " + str(time.time() - stime)
+        self._qprint("Resolving " + str(self.repo.get_domain_count()) + " unique domains")
         self.domains_to_ips()
+        print "Resolved IPs " + str(time.time() - stime)
+        self._qprint("Looking up ASNs")
         self.add_asn_cc_info()
+        print "Got asns " + str(time.time() - stime)
+        self._qprint("Getting domain CCs")
+        self.add_domain_ccs()
+        print "Added domain ccs " + str(time.time() - stime)
         self.filter_print_matches()
+        print "Filter printed output " + str(time.time() - stime)
         #self.repo.dump()
 
 if __name__ == "__main__":
