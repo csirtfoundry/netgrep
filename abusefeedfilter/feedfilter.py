@@ -122,11 +122,13 @@ class NetObjectRepo:
         self.add_domain(domain)
         self.db.execute("UPDATE domains SET cc=? WHERE domain=?", [cc.upper(), domain])
 
-    def add_domain_ip(self, domain, ip):
-        ip_id = self.add_ip(ip)
-        domain_id = self.add_domain(domain)
+    def add_domain_ips(self, domain, ips):
+        for ip in ips:
+            ip_id = self.add_ip(ip)
 
-        self.db.execute("INSERT INTO domain_ips (domain_id, ip_id) VALUES (?, ?)", 
+            domain_id = self.add_domain(domain)
+
+            self.db.execute("INSERT INTO domain_ips (domain_id, ip_id) VALUES (?, ?)", 
                         [domain_id, ip_id])
 
     def dump(self):
@@ -251,11 +253,11 @@ class FeedFilter:
         ar = AsyncResolver([domain_data["domain"] for domain_data in self.repo.get_domain_data()])
         resolved = ar.resolve()
 
-        for host, ip in resolved.items():
-              if ip is None:
+        for host, ips in resolved.items():
+              if ips is None:
                   self._vprint("%s could not be resolved." % host)
               else:
-                  self.repo.add_domain_ip(host, ip)
+                  self.repo.add_domain_ips(host, ips)
     
     def extract_matches(self):
         reader = csv.reader(self.infile, delimiter=self.delim)
@@ -288,7 +290,6 @@ class FeedFilter:
             if self.has_header and linenum == 0:
                 header_line = line
                 continue
-            #self._vprint("====\nOrig: " + line)
             try:
                 for cell in list(csv.reader([line], delimiter=self.delim))[0]:
                     cell = cell.strip()
@@ -301,7 +302,7 @@ class FeedFilter:
                                         break
                         elif "chk_func" in m_dict and m_dict["chk_func"](cell):
                             if self.repo.belongs_to(datatype=m_dict["type"], data=cell, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
-                                self._vprint("'%s' matched a filter" % (cell))
+                                self._vprint("'%s' matched a filter in %s" % (cell, m_key))
                                 print_line = True
                         elif "rex" in m_dict:
                             for m in re.findall(m_dict["rex"], cell):
@@ -390,7 +391,7 @@ class FeedFilter:
         print "Added domain ccs " + str(time.time() - stime)
         self.filter_print_matches()
         print "Filter printed output " + str(time.time() - stime)
-        self.repo.dump()
+        #self.repo.dump()
 
 if __name__ == "__main__":
     feedfilter = FeedFilter({})

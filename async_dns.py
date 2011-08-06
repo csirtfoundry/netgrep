@@ -8,6 +8,8 @@
 # Read more about this code at:
 # http://www.catonmat.net/blog/asynchronous-dns-resolution
 #
+# CH 2011/08/6 - modified to return all IPs: 
+#      ip = answer[3][0] to ip = answer[3]
 
 import adns
 from time import time
@@ -34,7 +36,7 @@ class AsyncResolver(object):
                 host = active_queries[query]
                 del active_queries[query]
                 if answer[0] == 0:
-                    ip = answer[3][0]
+                    ip = answer[3]
                     resolved_hosts[host] = ip
                 elif answer[0] == 101: # CNAME
                     query = self.adns.submit(answer[1], adns.rr.A)
