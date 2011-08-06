@@ -265,7 +265,6 @@ class FeedFilter:
                 if self.has_header and linenum == 0:
                     pass
                 for cell in line:
-                    self._vprint(cell)
                     cell = cell.strip()
                     for m_key, m_dict in self.matchers.items():
                         if "chk_func" in m_dict and "rex" in m_dict:
@@ -378,18 +377,20 @@ class FeedFilter:
         self._qprint("Extracting matches")
         self.extract_matches()
         print "Got matches " + str(time.time() - stime)
-        self._qprint("Resolving " + str(self.repo.get_domain_count()) + " unique domains")
-        self.domains_to_ips()
-        print "Resolved IPs " + str(time.time() - stime)
-        self._qprint("Looking up ASNs")
-        self.add_asn_cc_info()
-        print "Got asns " + str(time.time() - stime)
-        self._qprint("Getting domain CCs")
+        if self.repo.get_domain_count() > 0:
+            self._qprint("Resolving " + str(self.repo.get_domain_count()) + " unique domains")
+            self.domains_to_ips()
+            print "Resolved IPs " + str(time.time() - stime)
+            self._qprint("Looking up ASNs")
+        if self.repo.get_ip_count() > 0:
+            self.add_asn_cc_info()
+            print "Got asns " + str(time.time() - stime)
+            self._qprint("Getting domain CCs")
         self.add_domain_ccs()
         print "Added domain ccs " + str(time.time() - stime)
         self.filter_print_matches()
         print "Filter printed output " + str(time.time() - stime)
-        #self.repo.dump()
+        self.repo.dump()
 
 if __name__ == "__main__":
     feedfilter = FeedFilter({})
