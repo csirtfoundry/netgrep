@@ -228,6 +228,10 @@ class FeedFilter:
             self.delim = "\t"
         elif args.format == "delim":
             self.delim = args.delim
+        else:
+            self.delim = self._guess_delim()
+
+        logging.info("I guess your delimiter as '%s'", self.delim)
 
         for filt in args.filter.split(','):
             for m in re.findall("^(?:AS)?(\d+)$", filt):
@@ -244,6 +248,18 @@ class FeedFilter:
             logging.info("  ASN: %s" % (", ".join(self.asn_filters)))
         if self.cc_filters:
             logging.info("  Country codes: %s" % (", ".join(self.cc_filters)))
+
+    def _guess_delim(self):
+        sniffer = csv.Sniffer()
+        self.infile.seek(0)
+        sample = self.infile.read(2048)
+        self.infile.seek(0)
+        try:
+            delim = sniffer.sniff(sample, "\t |,").delimiter
+        except csv.Error:
+            # out of ideas, only one field? Set to ','
+            delim = ","
+        return delim
 
     def domains_to_ips(self):
         ar = AsyncResolver([domain_data["domain"] for domain_data in self.repo.get_domain_data()])
@@ -289,7 +305,7 @@ class FeedFilter:
         try:
             match = False
             for cell in list(csv.reader([line], delimiter=self.delim))[0]:
-                cell.strip()
+                cell = cell.strip()
                 for m_key, m_dict in self.matchers.items():
                     if "chk_func" in m_dict and "rex" in m_dict:
                         for m in re.findall(m_dict["rex"], cell):

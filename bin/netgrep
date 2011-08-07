@@ -8,19 +8,9 @@ import sys
 def get_args():
     parser = argparse.ArgumentParser(
                 description="Filter logs based on country codes or ASNs.", 
-                epilog="Example usage: cat mylog | %s --filter AU,AS1111 \
-                        --format CSV" % sys.argv[0])
-    parser.add_argument('-flt', '--filter', required=True,
-                        help="List the country codes and ASes you want to  \
-                              find in the file.\
-                              Use comma separators with no spaces.\
-                              e.g. AS345,AS234,JP,AU. Country codes should \
-                              match those used by Cymry bulk whois: \
-                              http://www.team-cymru.org/Services/ip-to-asn.html \
-                              . If you have multiple possible codes, include \
-                              all e.g. UK,GB")
+                epilog="Example usage: cat mylog | %s AU,AS1111 \
+                       "  % sys.argv[0])
     parser.add_argument('-fmt', '--format', choices=['CSV','TSV','delim'], 
-                        required=True,
                         help="Format of input file: chose CSV, TSV or specify \
                               delim with --delim=x for a custom delimiter")
     parser.add_argument('-d', '--delim', 
@@ -46,6 +36,15 @@ def get_args():
     parser.add_argument('-q', '--quiet', action="store_true", default=False,
                         help="Don't print any warnings or status messages, \
                               good for cron.")
+    parser.add_argument('filter', 
+                        help="List the country codes and ASes you want to  \
+                              find in the file.\
+                              Use comma separators with no spaces.\
+                              e.g. AS345,AS234,JP,AU. Country codes should \
+                              match those used by Cymry bulk whois: \
+                              http://www.team-cymru.org/Services/ip-to-asn.html \
+                              . If you have multiple possible codes, include \
+                              all e.g. UK,GB")
   
     args = parser.parse_args()
     return args
