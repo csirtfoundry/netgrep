@@ -9,10 +9,11 @@ import sqlite3
 import sys
 from bulkwhois.cymru import BulkWhoisCymru
 from async_dns import AsyncResolver
-#import publicsuffix.publicsuffix as publicsuffix
 from publicsuffix import PublicSuffixList
 import httplib2
 import tempfile
+import logging
+import time
 
 class NetObjectRepo:
     db = None
@@ -20,8 +21,8 @@ class NetObjectRepo:
     def __init__(self):
         self.db = sqlite3.connect(":memory:")
         self.db.row_factory = sqlite3.Row
-        # normally, we should store IPs as ints, but we can get away with it 
-        # here
+        # normally, we should store IPs as ints, but let's try to get away \
+        # with it here
         self.db.execute("CREATE TABLE ips (id integer primary key, ip text unique, \
                     asn int, cc varchar)")
         self.db.execute("CREATE TABLE domains (id integer primary key, \
@@ -133,7 +134,7 @@ class NetObjectRepo:
 
     def dump(self):
         for line in self.db.iterdump():
-            print line
+            logging.debug(line)
 
 class FeedFilter:
     """
@@ -157,7 +158,7 @@ class FeedFilter:
 
     def __init__(self, args):
         """ args - passed in by optparse """
-
+        
         if type(args) != argparse.Namespace:
             return None
        
@@ -181,22 +182,19 @@ class FeedFilter:
             "type": "domain",
         }
 
-        # download the public suffix list or access cache in /tmp
-        #self.psl = publicsuffix.public_suffix_list(
-        #    http=httplib2.Http(tempfile.gettempdir()),
-        #    headers={'cache-control': 'max-age=%d' % (60*60*24)}
-        #)
+        level = logging.WARN
+
+        if args.verbose:
+            level = logging.INFO
+        if args.verboser:
+            level = logging.DEBUG
+        if args.quiet:
+            level = logging.ERROR
+        logging.basicConfig(level=level, format="%(message)s")
+
         self.psl = PublicSuffixList(self._get_psl_file())
 
         self.parse_args(args)
-
-    def _vprint(self, line):
-        if self.verbose:
-            sys.stderr.write("**" + str(line) + "\n")
-
-    def _qprint(self, line):
-        if not self.quiet:
-            sys.stderr.write(line + "\n")
 
     def _get_psl_file(self):
         url = 'http://mxr.mozilla.org/mozilla-central/source/netwerk/dns/effective_tld_names.dat?raw=1'
@@ -241,11 +239,11 @@ class FeedFilter:
             #raise ValueError, "You need to specify at least one valid TLD or ASN filter. e.g. AS254,JP,AU"
             sys.exit("You need to specify --filter with at least one valid TLD or ASN filter. e.g. AS254,JP,AU")
         
-        self._qprint("Using filters: ")
+        logging.info("Using filters: ")
         if self.asn_filters:
-            self._qprint("  ASN: %s" % (", ".join(self.asn_filters)))
+            logging.info("  ASN: %s" % (", ".join(self.asn_filters)))
         if self.cc_filters:
-            self._qprint("  Country codes: %s" % (", ".join(self.cc_filters)))
+            logging.info("  Country codes: %s" % (", ".join(self.cc_filters)))
 
     def domains_to_ips(self):
         #for domain_data in self.repo.get_domain_data():
@@ -255,7 +253,7 @@ class FeedFilter:
 
         for host, ips in resolved.items():
               if ips is None:
-                  self._vprint("%s could not be resolved." % host)
+                  logging.debug("%s could not be resolved." % host)
               else:
                   self.repo.add_domain_ips(host, ips)
     
@@ -279,7 +277,7 @@ class FeedFilter:
                             for m in re.findall(m_dict["rex"], cell):
                                 self.repo.add(m_dict["type"], m)
         except csv.Error as e:
-            self._qprint("CSV parse error, skipping")
+            logging.info("CSV parse error, skipping line %d", linenum + 1)
 
     def filter_print_matches(self):
         header_line = None
@@ -302,12 +300,12 @@ class FeedFilter:
                                         break
                         elif "chk_func" in m_dict and m_dict["chk_func"](cell):
                             if self.repo.belongs_to(datatype=m_dict["type"], data=cell, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
-                                self._vprint("'%s' matched a filter in %s" % (cell, m_key))
+                                logging.debug("'%s' matched a filter in %s" % (cell, m_key))
                                 print_line = True
                         elif "rex" in m_dict:
                             for m in re.findall(m_dict["rex"], cell):
                                 if self.repo.belongs_to(datatype=m_dict["type"], data=m, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
-                                    self._vprint("'%s' matched a filter" % (cell))
+                                    logging.debug("'%s' matched a filter" % (cell))
                                     print_line = True
                                     break
 
@@ -316,7 +314,7 @@ class FeedFilter:
                     if print_line:
                         break
             except csv.Error as e:
-                self._vprint("CSV parse error, skipping")
+                logging.warn("CSV parse error, skipping line %s", linenum + 1)
 
             if print_line == True:
                 if header_line:
@@ -324,6 +322,27 @@ class FeedFilter:
                     header_line = None
                 self.outfile.write(line)
 
+    def _get_line_matches(line, line_num, return_after_one_match=False, return_after_all_matches=True):
+            try:
+                for cell in list(csv.reader([line], delimiter=self.delim))[0]:
+                    matches = []
+                    cell.strip():
+                    for m_key, m_dict in self.matchers.items():
+                        if "chk_func" in m_dict and "rex" in m_dict:
+                            for m in re.findall(m_dict["rex"], cell):
+                                if m_dict["chk_func"](m):
+                                    matches.append((m_dict["type"], m)
+                        elif "chk_func" in m_dict and m_dict["chk_func"](cell):
+                            matches.append((m_dict["type"], cell))
+                        elif "rex" in m_dict:
+                            for m in re.findall(m_dict["rex"], cell):
+                                matches.append((m_dict["type"], cell))
+                    if return_after_one_match and matches:
+                        return matches
+            except csv.Error as e:
+                logging.warn("Error parsing line %d, skipping" % line_num)
+
+        return matches
 
     def _is_valid_domain(self, domain):
         if not str(domain):
@@ -373,25 +392,24 @@ class FeedFilter:
                 self.repo.add_domain_cc(domain_data["domain"], cc=(tld.split(".")[-1]))
 
     def process_file(self):
-        import time
         stime = time.time()
-        self._qprint("Extracting matches")
+        logging.info("Extracting matches")
         self.extract_matches()
-        print "Got matches " + str(time.time() - stime)
+        logging.debug("Got matches " + str(time.time() - stime))
         if self.repo.get_domain_count() > 0:
-            self._qprint("Resolving " + str(self.repo.get_domain_count()) + " unique domains")
+            logging.info("Resolving " + str(self.repo.get_domain_count()) + " unique domains")
             self.domains_to_ips()
-            print "Resolved IPs " + str(time.time() - stime)
-            self._qprint("Looking up ASNs")
+            logging.debug("Resolved IPs " + str(time.time() - stime))
+            logging.info("Looking up ASNs")
         if self.repo.get_ip_count() > 0:
             self.add_asn_cc_info()
-            print "Got asns " + str(time.time() - stime)
-            self._qprint("Getting domain CCs")
+            logging.debug("Got asns " + str(time.time() - stime))
+            logging.info("Getting domain CCs")
         self.add_domain_ccs()
-        print "Added domain ccs " + str(time.time() - stime)
+        logging.debug("Added domain ccs " + str(time.time() - stime))
         self.filter_print_matches()
-        print "Filter printed output " + str(time.time() - stime)
-        #self.repo.dump()
+        logging.debug("Filter printed output " + str(time.time() - stime))
+        self.repo.dump()
 
 if __name__ == "__main__":
     feedfilter = FeedFilter({})

@@ -7,10 +7,10 @@ import sys
 
 def get_args():
     parser = argparse.ArgumentParser(
-                description="Filter logs based on country codes or ASNs. \
-                             Simple usage: cat mylog | %s --filter AU,AS1111 \
-                             --format CSV" % __file__)
-    parser.add_argument('--filter', required=True,
+                description="Filter logs based on country codes or ASNs.", 
+                epilog="Example usage: cat mylog | %s --filter AU,AS1111 \
+                        --format CSV" % sys.argv[0])
+    parser.add_argument('-flt', '--filter', required=True,
                         help="List the country codes and ASes you want to  \
                               find in the file.\
                               Use comma separators with no spaces.\
@@ -19,32 +19,31 @@ def get_args():
                               http://www.team-cymru.org/Services/ip-to-asn.html \
                               . If you have multiple possible codes, include \
                               all e.g. UK,GB")
-    parser.add_argument('--format', choices=['CSV','TSV','delim'], 
+    parser.add_argument('-fmt', '--format', choices=['CSV','TSV','delim'], 
                         required=True,
                         help="Format of input file: chose CSV, TSV or specify \
                               delim with --delim=x for a custom delimiter")
-    parser.add_argument('--delim', 
+    parser.add_argument('-d', '--delim', 
                         help="If you have a delimited file, specify the \
                               delimeter e.g. \| ")
     #parser.add_argument('--xml_record_delim', 
     #                    help="For XML files, which field starts and ends a \
     #                          record?")
-    parser.add_argument('--ignore_field_num',  
-                        help="Specify the delimited field number (starting \
-                              from 0) which contains IP addresses you don't \
-                              want to filter in, e.g. your sensor IP.")
     #parser.add_argument('--xml_ignore_field', 
     #                    help="Specify an XML field which you don't want to \
     #                          filter in e.g. your sensor IP")
-    parser.add_argument('--has_header', action="store_true",
+    parser.add_argument('-hh', '--has_header', action="store_true",
                         help="First line is a header, don't filter out.")
-    parser.add_argument('--infile', type=argparse.FileType("r"), default=None,
+    parser.add_argument('-i', '--infile', type=argparse.FileType("r"), default=None,
                         help="The file you'd like to read in. Default is stdin.")
-    parser.add_argument('--outfile', type=argparse.FileType("w"), default=sys.stdout,
+    parser.add_argument('-o', '--outfile', type=argparse.FileType("w"), default=sys.stdout,
                         help="The file you'd like to write to. Default is stdout.")
-    parser.add_argument('--verbose', action="store_true", default=False,
-                        help="Explain why lines are being included")
-    parser.add_argument('--quiet', action="store_true", default=False,
+    parser.add_argument('-v', '--verbose', action="store_true", default=False,
+                        help="Explain why lines are being included, explain \
+                              processing stages")
+    parser.add_argument('-vv', '--verboser', action="store_true", default=False,
+                        help="Debug mode")
+    parser.add_argument('-q', '--quiet', action="store_true", default=False,
                         help="Don't print any warnings or status messages, \
                               good for cron.")
   
