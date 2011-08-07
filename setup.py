@@ -5,7 +5,7 @@ setup(
     version='0.1.0',
     author='CSIRT Foundry / Chris Horsley',
     author_email='chris.horsley@csirtfoundry.com',
-    packages=[],
+    packages=['netgrep', 'async_dns'],
     scripts=['bin/netgrep'],
     url='http://pypi.python.org/pypi/netgrep/',
     download_url='https://github.com/csirtfoundry/netgrep/tarball/master',
