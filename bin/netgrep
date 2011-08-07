@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-from abusefeedfilter.feedfilter import FeedFilter
+from netgrep.feedfilter import FeedFilter
 import sys
 
 def get_args():
@@ -16,12 +16,6 @@ def get_args():
     parser.add_argument('-d', '--delim', 
                         help="If you have a delimited file, specify the \
                               delimeter e.g. \| ")
-    #parser.add_argument('--xml_record_delim', 
-    #                    help="For XML files, which field starts and ends a \
-    #                          record?")
-    #parser.add_argument('--xml_ignore_field', 
-    #                    help="Specify an XML field which you don't want to \
-    #                          filter in e.g. your sensor IP")
     parser.add_argument('-hh', '--has_header', action="store_true",
                         help="First line is a header, don't filter out.")
     parser.add_argument('-i', '--infile', type=argparse.FileType("r"), default=None,

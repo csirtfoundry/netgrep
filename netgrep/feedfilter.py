@@ -1,6 +1,5 @@
 __all__ = ('FeedFilter')
 
-from delim_filter import DelimFilter
 import argparse
 import re
 import csv
