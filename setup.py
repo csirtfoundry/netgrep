@@ -6,7 +6,7 @@ setup(
     author='CSIRT Foundry / Chris Horsley',
     author_email='chris.horsley@csirtfoundry.com',
     packages=[],
-    scripts=[],
+    scripts=['bin/netgrep'],
     url='http://pypi.python.org/pypi/netgrep/',
     download_url='https://github.com/csirtfoundry/netgrep/tarball/master',
     license='LICENSE.txt',

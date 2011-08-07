@@ -4,4 +4,3 @@ LICENSE.txt
 README.txt
 setup.py
 bin/netgrep
-netgrep/feedfilter.py
