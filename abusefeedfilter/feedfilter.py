@@ -146,7 +146,6 @@ class FeedFilter:
     cc_filters = []
     asn_filters = []
     format = None
-    ignore_field = None
     has_header = False
     infile = None
     outfile = None
@@ -182,16 +181,6 @@ class FeedFilter:
             "type": "domain",
         }
 
-        level = logging.WARN
-
-        if args.verbose:
-            level = logging.INFO
-        if args.verboser:
-            level = logging.DEBUG
-        if args.quiet:
-            level = logging.ERROR
-        logging.basicConfig(level=level, format="%(message)s")
-
         self.psl = PublicSuffixList(self._get_psl_file())
 
         self.parse_args(args)
@@ -217,6 +206,17 @@ class FeedFilter:
         self.quiet = args.quiet
         self.has_header = args.has_header
 
+        level = logging.WARN
+
+        if args.verbose:
+            level = logging.INFO
+        if args.verboser:
+            level = logging.DEBUG
+        if args.quiet:
+            level = logging.ERROR
+ 
+        logging.basicConfig(level=level, format="%(message)s")
+        
         if not args.infile:
             self.infile = create_stdin_temp_file()
         else:
@@ -246,8 +246,6 @@ class FeedFilter:
             logging.info("  Country codes: %s" % (", ".join(self.cc_filters)))
 
     def domains_to_ips(self):
-        #for domain_data in self.repo.get_domain_data():
-        #    print domain_data
         ar = AsyncResolver([domain_data["domain"] for domain_data in self.repo.get_domain_data()])
         resolved = ar.resolve()
 
@@ -256,65 +254,30 @@ class FeedFilter:
                   logging.debug("%s could not be resolved." % host)
               else:
                   self.repo.add_domain_ips(host, ips)
-    
+   
     def extract_matches(self):
-        reader = csv.reader(self.infile, delimiter=self.delim)
-        try:
-            for linenum, line in enumerate(reader):
-                # no need to parse a header line
-                if self.has_header and linenum == 0:
-                    pass
-                for cell in line:
-                    cell = cell.strip()
-                    for m_key, m_dict in self.matchers.items():
-                        if "chk_func" in m_dict and "rex" in m_dict:
-                            for m in re.findall(m_dict["rex"], cell):
-                                if m_dict["chk_func"](m):
-                                    self.repo.add(m_dict["type"], m)
-                        elif "chk_func" in m_dict and m_dict["chk_func"](cell):
-                            self.repo.add(m_dict["type"], cell)
-                        elif "rex" in m_dict:
-                            for m in re.findall(m_dict["rex"], cell):
-                                self.repo.add(m_dict["type"], m)
-        except csv.Error as e:
-            logging.info("CSV parse error, skipping line %d", linenum + 1)
+        self.infile.seek(0)        
+        for linenum, line in enumerate(self.infile.readlines()):
+            # no need to parse a header line
+            if self.has_header and linenum == 0:
+                pass
+            for (match_type, match) in self._get_line_matches(line, linenum):
+                self.repo.add(match_type, match)
 
     def filter_print_matches(self):
         header_line = None
         self.infile.seek(0)
-        
+
         for linenum, line in enumerate(self.infile.readlines()):
             print_line = False
+
             if self.has_header and linenum == 0:
                 header_line = line
                 continue
-            try:
-                for cell in list(csv.reader([line], delimiter=self.delim))[0]:
-                    cell = cell.strip()
-                    for m_key, m_dict in self.matchers.items():
-                        if "chk_func" in m_dict and "rex" in m_dict:
-                            for m in re.findall(m_dict["rex"], cell):
-                                if m_dict["chk_func"](m):
-                                    if self.repo.belongs_to(datatype=m_dict["type"], data=m, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
-                                        print_line = True
-                                        break
-                        elif "chk_func" in m_dict and m_dict["chk_func"](cell):
-                            if self.repo.belongs_to(datatype=m_dict["type"], data=cell, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
-                                logging.debug("'%s' matched a filter in %s" % (cell, m_key))
-                                print_line = True
-                        elif "rex" in m_dict:
-                            for m in re.findall(m_dict["rex"], cell):
-                                if self.repo.belongs_to(datatype=m_dict["type"], data=m, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
-                                    logging.debug("'%s' matched a filter" % (cell))
-                                    print_line = True
-                                    break
-
-                        if print_line:
-                            break
-                    if print_line:
-                        break
-            except csv.Error as e:
-                logging.warn("CSV parse error, skipping line %s", linenum + 1)
+            for match_type, match in self._get_line_matches(line, linenum, fetch_only_one=True):
+                if self.repo.belongs_to(datatype=match_type, data=match, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
+                    print_line = True
+                    logging.debug("'%s' matches filter %s", match, match_type) 
 
             if print_line == True:
                 if header_line:
@@ -322,27 +285,28 @@ class FeedFilter:
                     header_line = None
                 self.outfile.write(line)
 
-    def _get_line_matches(line, line_num, return_after_one_match=False, return_after_all_matches=True):
-            try:
-                for cell in list(csv.reader([line], delimiter=self.delim))[0]:
-                    matches = []
-                    cell.strip():
-                    for m_key, m_dict in self.matchers.items():
-                        if "chk_func" in m_dict and "rex" in m_dict:
-                            for m in re.findall(m_dict["rex"], cell):
-                                if m_dict["chk_func"](m):
-                                    matches.append((m_dict["type"], m)
-                        elif "chk_func" in m_dict and m_dict["chk_func"](cell):
-                            matches.append((m_dict["type"], cell))
-                        elif "rex" in m_dict:
-                            for m in re.findall(m_dict["rex"], cell):
-                                matches.append((m_dict["type"], cell))
-                    if return_after_one_match and matches:
-                        return matches
-            except csv.Error as e:
-                logging.warn("Error parsing line %d, skipping" % line_num)
+    def _get_line_matches(self, line, line_num, fetch_only_one=False):
+        try:
+            match = False
+            for cell in list(csv.reader([line], delimiter=self.delim))[0]:
+                cell.strip()
+                for m_key, m_dict in self.matchers.items():
+                    if "chk_func" in m_dict and "rex" in m_dict:
+                        for m in re.findall(m_dict["rex"], cell):
+                            if m_dict["chk_func"](m):
+                                yield((m_dict["type"], m))
+                    elif "chk_func" in m_dict and m_dict["chk_func"](cell):
+                        match = True
+                        yield((m_dict["type"], cell))
+                    elif "rex" in m_dict:
+                        for m in re.findall(m_dict["rex"], cell):
+                            match = True
+                            yield((m_dict["type"], m))
+                if match and fetch_only_one:
+                    break
+        except csv.Error as e:
+            logging.warn("Error parsing line %d, skipping" % line_num)
 
-        return matches
 
     def _is_valid_domain(self, domain):
         if not str(domain):
