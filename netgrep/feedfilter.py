@@ -109,7 +109,8 @@ class NetObjectRepo:
         return self.db.execute("SELECT count(id) as domcount from domains").fetchone()["domcount"]
     
     def get_domain_tld(self, domain):
-        return self.db.execute("SELECT * from domains WHERE domain = ?", [domain]).fetchone()["cc"]
+        row = self.db.execute("SELECT * from domains WHERE domain = ?", [domain]).fetchone()
+        return row and row["cc"]
 
     def add_domain(self, domain, cc=""):
         domain_query = "SELECT id from domains WHERE domain = ?"
@@ -158,7 +159,7 @@ class FeedFilter:
         """ args - passed in by optparse """
         
         if type(args) != argparse.Namespace:
-            return None
+            raise ValueError, "Args imported as %s, should be argparse.Namespace type" % type(args)
        
         # regexs are intentionally broad - we'll run more tests later.
 
@@ -279,26 +280,21 @@ class FeedFilter:
             for (match_type, match) in self._get_line_matches(line, linenum):
                 self.repo.add(match_type, match)
 
-    def filter_print_matches(self):
-        header_line = None
+    def get_filtered_lines(self):
         self.infile.seek(0)
 
         for linenum, line in enumerate(self.infile.readlines()):
-            print_line = False
-
             if self.has_header and linenum == 0:
-                header_line = line
-                continue
-            for match_type, match in self._get_line_matches(line, linenum, fetch_only_one=True):
-                if self.repo.belongs_to(datatype=match_type, data=match, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
-                    print_line = True
-                    logging.debug("'%s' matches filter %s", match, match_type) 
+                yield(line)
+            else:
+                for match_type, match in self._get_line_matches(line, linenum, fetch_only_one=True):
+                    if self.repo.belongs_to(datatype=match_type, data=match, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
+                        yield(line)
+                        logging.debug("'%s' matches filter %s", match, match_type) 
 
-            if print_line == True:
-                if header_line:
-                    self.outfile.write(header_line)
-                    header_line = None
-                self.outfile.write(line)
+    def output_matches(self):
+        for line in self.get_filtered_lines():
+            self.outfile.write(line)
 
     def _get_line_matches(self, line, line_num, fetch_only_one=False):
         try:
@@ -386,8 +382,6 @@ class FeedFilter:
             logging.info("Getting domain CCs")
         self.add_domain_ccs()
         logging.debug("Added domain ccs " + str(time.time() - stime))
-        self.filter_print_matches()
-        logging.debug("Filter printed output " + str(time.time() - stime))
         self.repo.dump()
 
 if __name__ == "__main__":

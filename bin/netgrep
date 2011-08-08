@@ -47,6 +47,7 @@ def main():
     args = get_args()
     feedfilter = FeedFilter(args)
     feedfilter.process_file()
+    feedfilter.output_matches()
 
 if __name__ == "__main__":
     main()
