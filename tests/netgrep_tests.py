@@ -4,7 +4,7 @@ import tempfile
 import argparse
 import sys
 
-class default_args(object):
+class default_setup(object):
 
     def __init__(self):
         self.args = argparse.Namespace()
@@ -16,38 +16,44 @@ class default_args(object):
         self.args.outfile = sys.stdout
 
     def set_input_file(self, data):
-        #f = tempfile.NamedTemporaryFile("r+")
-        f = open("/tmp/tester", "w")
-        f.write(data)
-        f.close()
-        f = open("/tmp/tester", "r")
-        return f
+        self.wf = tempfile.NamedTemporaryFile()
+        self.wf.write(data)
+        return self.wf
  
 class basic_test(unittest.TestCase):
       
     def setUp(self):
-        self.args = default_args()   
-
-        #args = (self.argp.parse_args(['AU', '--infile=%s' % "/tmp/ddds"])) #self.get_file_name(inf)]))
-        #args = args()
-        #args = argparse.Namespace()
-        self.args.args.filter = "AU"
-        self.args.args.infile = self.args.set_input_file("203.21.203.254\nwww.hotmail.com.au")
-        self.ng = FeedFilter(self.args.args)
+        self.setup = default_setup()   
 
     def tearDown(self):
+        self.setup.wf.close()
         pass
 
+    def count_matches(self, ng, correct_count):
+        lines = 0
+        ng.process_file()
+        for l in ng.get_filtered_lines():
+            lines += 1
+        assert(lines == correct_count)
 
     def test_singleline(self):
-        print "Writing lines"
+        #filter, matches, data = self.setup.parse_test_file()
+        self.setup.args.filter = "AU"
+        self.setup.args.infile = self.setup.set_input_file("203.21.203.254")
+        ng = FeedFilter(self.setup.args)
+        self.count_matches(ng, 1)
+
+    def test_comma_parse(self):
+        self.setup.args.filter = "AU"
+        self.setup.args.infile = self.setup.set_input_file("203.21.203.254,www.example.com")
+        self.ng = FeedFilter(self.setup.args)
         lines = 0
         self.ng.process_file()
         for l in self.ng.get_filtered_lines():
             lines += 1
             print( "Line: %s" % l)
 
-        assert(lines == 2)
+        assert(lines == 1)
 
 if __name__ == "__main__":
     unittest.main()
