@@ -4,7 +4,7 @@
 import unittest
 from netgrep.feedfilter import FeedFilter
 import tempfile
-
+(
 class filter_test(unittest.TestCase):
     """ 
         since we're looking up domains and IP locations live, we can't guarantee
@@ -24,17 +24,11 @@ class filter_test(unittest.TestCase):
 
     def count_matches(self, ng, correct_count):
         lines = 0
-        #print "======"
-        #print ng.verbose
-        #print ng.cc_filters
-        #print ng.asn_filters
-        #for l in self.fh.readlines():
-        #    print l
         self.fh.seek(0)
         ng.process_file()
         for l in ng.get_filtered_lines():
+            print l
             lines += 1
-        #    print "Match: %s" % l
         try:
             assert(lines == correct_count)
         except AssertionError, e:
@@ -66,7 +60,7 @@ class filter_test(unittest.TestCase):
         ng = FeedFilter(filter="US", infile=self.fh)
         self.count_matches(ng, 1)
 
-    def test_domain_ip_match(self):
+    def test_domain_ip_no_match(self):
         # Test no match for non-related domain
         self.set_input("www.bbc.co.uk")
         ng = FeedFilter(filter="AR", infile=self.fh)
@@ -99,7 +93,9 @@ class filter_test(unittest.TestCase):
         self.count_matches(ng, 1)
 
     def test_at_url_credential(self):
-        pass
+        self.set_input("http://me@abc.net.au/")
+        ng = FeedFilter(filter="AU", infile=self.fh)
+        self.count_matches(ng, 1)
 
     def test_unicode_non_address(self):
         # test unicode chars outside of a matchable IP address or hostname.
@@ -165,7 +161,7 @@ class delim_guess(unittest.TestCase):
         self.set_input("1,1,1,1\t2,2,2,2")
         ng = FeedFilter(filter="AU", infile=self.fh, delim='\t')
         self.assert_delim(ng.delim, "\t")
-    
+
 
 if __name__ == "__main__":
     unittest.main()

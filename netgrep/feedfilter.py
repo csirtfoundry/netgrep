@@ -1,6 +1,5 @@
 __all__ = ('FeedFilter')
 
-import argparse
 import re
 import csv
 import socket
@@ -9,6 +8,7 @@ import sys
 from bulkwhois.cymru import BulkWhoisCymru
 from async_dns import AsyncResolver
 from publicsuffix import PublicSuffixList
+from urlparse import urlparse
 import httplib2
 import tempfile
 import logging
@@ -163,8 +163,8 @@ class FeedFilter:
             "chk_func": self._is_valid_ip,
             "type": "ip",
         }
-        self.matchers["url"] = {
-            "rex": "(?:(?:\w+)://)([^\/\s]+)",
+        self.matchers["uri"] = {
+            "rex": "(?:(?:\w+)://)(?![^/@]+?@)?([^\/\s]+)",
             "type": "domain",
         }
         self.matchers["hostname"] = {
@@ -216,7 +216,7 @@ class FeedFilter:
  
         logging.basicConfig(level=level, format="%(message)s")
         
-        if not infile:
+        if not infile or infile.name == "<stdin>":
             self.infile = create_stdin_temp_file()
         else:
             self.infile = infile
@@ -294,6 +294,7 @@ class FeedFilter:
                     if self.repo.belongs_to(datatype=match_type, data=match, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
                         yield(line)
                         logging.debug("'%s' matches filter %s", match, match_type) 
+                        break
 
     def output_matches(self):
         for line in self.get_filtered_lines():
@@ -308,7 +309,11 @@ class FeedFilter:
                     if "chk_func" in m_dict and "rex" in m_dict:
                         for m in re.findall(m_dict["rex"], cell):
                             if m_dict["chk_func"](m):
+                                match = True
+                                logging.debug("matched 'm' as")
                                 yield((m_dict["type"], m))
+                            if match and fetch_only_one:
+                                break
                     elif "chk_func" in m_dict and m_dict["chk_func"](cell):
                         match = True
                         yield((m_dict["type"], cell))
