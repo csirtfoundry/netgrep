@@ -38,7 +38,9 @@ def get_args():
                               . If you have multiple possible codes, include \
                               all e.g. UK,GB")
     parser.add_argument('infile', nargs="*", type=argparse.FileType("r"), default=[sys.stdin],
-                        help="The file you'd like to read in. Default is stdin.")
+                        help="The list of files you'd like to filter. May be \
+                              a wildcard, but doesn't support recursion just \
+                              yet. Default is stdin.")
     
     args = parser.parse_args()
     return args
@@ -46,7 +48,6 @@ def get_args():
 def main():
     args = get_args()
     for file in args.infile:
-        print file
         feedfilter = FeedFilter(
                 format=args.format,
                 infile=file,

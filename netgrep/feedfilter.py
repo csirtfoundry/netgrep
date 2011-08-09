@@ -8,7 +8,6 @@ import sys
 from bulkwhois.cymru import BulkWhoisCymru
 from async_dns import AsyncResolver
 from publicsuffix import PublicSuffixList
-from urlparse import urlparse
 import httplib2
 import tempfile
 import logging

@@ -27,7 +27,6 @@ class filter_test(unittest.TestCase):
         self.fh.seek(0)
         ng.process_file()
         for l in ng.get_filtered_lines():
-            print l
             lines += 1
         try:
             assert(lines == correct_count)
@@ -35,8 +34,8 @@ class filter_test(unittest.TestCase):
             raise AssertionError, "Expected %d lines, got %d" % (correct_count, lines)
 
     def test_match_ip(self):
-        # IP hosted in a country
-        self.set_input("1.1.1.1")
+        # IP hosted in a country. This is a .au Macquarie Telecom IP.
+        self.set_input("210.193.134.1")
         ng = None
         ng = FeedFilter(filter="AU", infile=self.fh)
         self.count_matches(ng, 1)
