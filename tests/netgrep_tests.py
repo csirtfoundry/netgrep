@@ -4,7 +4,7 @@
 import unittest
 from netgrep.feedfilter import FeedFilter
 import tempfile
-(
+
 class filter_test(unittest.TestCase):
     """ 
         since we're looking up domains and IP locations live, we can't guarantee
