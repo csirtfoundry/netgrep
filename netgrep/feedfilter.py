@@ -142,24 +142,20 @@ class FeedFilter:
         processes them, and passes them out to an appropriate filter.
     """
 
-    delim = None
-    cc_filters = []
-    asn_filters = []
-    format = None
-    has_header = False
-    infile = None
-    outfile = None
-    verbose = False
-    quiet = False
-
-    matchers = {}
-    repo = NetObjectRepo()
-
-    def __init__(self, args):
+    def __init__(self, **kwargs):
         """ args - passed in by optparse """
-        
-        if type(args) != argparse.Namespace:
-            raise ValueError, "Args imported as %s, should be argparse.Namespace type" % type(args)
+        self.delim = None
+        self.cc_filters = []
+        self.asn_filters = []
+        self.format = None
+        self.has_header = False
+        self.infile = None
+        self.outfile = None
+        self.verbose = False
+        self.quiet = False
+
+        self.matchers = {}
+        self.repo = NetObjectRepo()
        
         # regexs are intentionally broad - we'll run more tests later.
 
@@ -183,7 +179,7 @@ class FeedFilter:
 
         self.psl = PublicSuffixList(self._get_psl_file())
 
-        self.parse_args(args)
+        self.parse_args(**kwargs)
 
     def _get_psl_file(self):
         url = 'http://mxr.mozilla.org/mozilla-central/source/netwerk/dns/effective_tld_names.dat?raw=1'
@@ -192,7 +188,9 @@ class FeedFilter:
         response, content = http.request(url, headers=headers)
         return content
 
-    def parse_args(self, args):
+    def parse_args(self, infile=sys.stdin, outfile=sys.stdout, verbose=False, 
+                   verboser=False, quiet=False, has_header=False, 
+                   format=None, filter=None, delim=None):
         
         def create_stdin_temp_file():
             f = tempfile.NamedTemporaryFile()
@@ -201,39 +199,44 @@ class FeedFilter:
             # TODO: according to docs, a second open won't work on Win
             return open(f.name, "r")
 
-        self.outfile = args.outfile
-        self.verbose = args.verbose
-        self.quiet = args.quiet
-        self.has_header = args.has_header
+        self.outfile = outfile
+        self.verbose = verbose
+        self.quiet = quiet
+        self.has_header = has_header
 
         level = logging.WARN
 
-        if args.verbose:
+        # quiet overrides everything else
+        if verbose:
             level = logging.INFO
-        if args.verboser:
+        if verboser:
             level = logging.DEBUG
-        if args.quiet:
+        if quiet:
             level = logging.ERROR
  
         logging.basicConfig(level=level, format="%(message)s")
         
-        if not args.infile:
+        if not infile:
             self.infile = create_stdin_temp_file()
         else:
-            self.infile = args.infile
+            self.infile = infile
 
-        if args.format == "CSV":
+        if format and format != "delim" and delim:
+            logging.warn("Warning: you've set both --format and --delim."+ 
+                         " Using delimiter '%s' in --delim" % delim)
+            self.delim = delim
+        elif delim and str(delim):
+            self.delim = delim
+        elif format == "CSV":
             self.delim = ","
-        elif args.format == "TSV":
+        elif format == "TSV":
             self.delim = "\t"
-        elif args.format == "delim":
-            self.delim = args.delim
         else:
             self.delim = self._guess_delim()
 
         logging.info("I guess your delimiter as '%s'", self.delim)
 
-        for filt in args.filter.split(','):
+        for filt in filter.split(','):
             for m in re.findall("^(?:AS)?(\d+)$", filt):
                 self.asn_filters.append(m.upper())
             for m in re.findall("^[A-Za-z]+$", filt):

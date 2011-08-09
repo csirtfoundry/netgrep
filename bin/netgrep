@@ -45,7 +45,17 @@ def get_args():
 
 def main():
     args = get_args()
-    feedfilter = FeedFilter(args)
+    feedfilter = FeedFilter(
+            format=args.format,
+            infile=args.infile,
+            outfile=args.outfile,
+            delim=args.delim,
+            has_header=args.has_header,
+            verbose=args.verbose,
+            verboser=args.verboser,
+            quiet=args.quiet,
+            filter=args.filter,
+    )
     feedfilter.process_file()
     feedfilter.output_matches()
 

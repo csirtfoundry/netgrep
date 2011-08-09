@@ -45,6 +45,14 @@ Further usage notes are available via --help
 Advanced usage
 --------------
 
+You can use netgrep as a quick little assertion tool. For example, does
+akamai.com resolve to any boxes is Singapore?
+
+$ echo "akamai.com" | netgrep SG
+akamai.com  # got output - assertion proven
+$ echo "akamai.com" | netgrep FI
+$ # no output - assertion failed
+
 netgrep tries to guess how your file is delimited. This isn't foolproof, so
 you can override it with --format and --delim, e.g.
 
@@ -85,6 +93,20 @@ Modify python2.7 for your version of Python, of course.
 
 Implementation notes
 ====================
+
+
+Limitations
+-----------
+
+* This initial release is focusing on functionality rather than performance for
+matching. It's nowhere near as efficient as mighty grep: 
+http://lists.freebsd.org/pipermail/freebsd-current/2010-August/019310.html?
+* Pains have been taken to keep the memory footprint low and network calls
+asynchronous / bulk where possible, though.
+* netgrep only handles one record per line for now, so that means no decent
+XML parsing. If this might be useful, let me know 
+[chris.horsley at csirtfoundry dot com].
+
 
 Acknowledgements
 ================
