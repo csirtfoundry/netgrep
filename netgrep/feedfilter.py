@@ -27,7 +27,7 @@ class NetObjectRepo:
                     domain varchar unique, cc varchar)")
         self.db.execute("CREATE TABLE domain_ips (ip_id integer, \
                     domain_id integer)")
-
+    
     def add(self, datatype="", data=""):
         if datatype == "ip":
             self.add_ip(data)
@@ -159,22 +159,23 @@ class FeedFilter:
         # regexs are intentionally broad - we'll run more tests later.
 
         self.matchers["ip"] = {
+                "rex": "(?:\d+\.){3}\d+",
             "chk_func": self._is_valid_ip,
             "type": "ip",
         }
-        self.matchers["uri"] = {
-            "rex": "(?:(?:\w+)://)(?![^/@]+?@)?([^\/\s]+)",
-            "type": "domain",
-        }
+        #self.matchers["uri"] = {
+        #    "rex": "(?:(?:\w+)://)(?![^/@]+?@)?([^\/\s]+)",
+        #    "type": "domain",
+        #}
         self.matchers["hostname"] = {
-            "rex": "^([a-zA-Z0-9\-\.]+\.[0-9a-zA-Z\-\.]+)(?:\d+)?$",
+            "rex": "([a-zA-Z0-9\-\.]+\.[0-9a-zA-Z\-\.]+)(?:\d+)?",
             "chk_func": self._is_valid_domain,
             "type": "domain",
         }
-        self.matchers["email"] = {
-            "rex": ".*\@([\w\-\.]+)",
-            "type": "domain",
-        }
+        #self.matchers["email"] = {
+        #    "rex": ".*\@([\w\-\.]+)",
+        #    "type": "domain",
+        #}
 
         self.psl = PublicSuffixList(self._get_psl_file())
 
@@ -279,7 +280,7 @@ class FeedFilter:
             # no need to parse a header line
             if self.has_header and linenum == 0:
                 pass
-            for (match_type, match) in self._get_line_matches(line, linenum):
+            for (match_type, match) in self.get_line_matches(line, linenum):
                 self.repo.add(match_type, match)
 
     def get_filtered_lines(self):
@@ -289,7 +290,7 @@ class FeedFilter:
             if self.has_header and linenum == 0:
                 yield(line)
             else:
-                for match_type, match in self._get_line_matches(line, linenum, fetch_only_one=True):
+                for match_type, match in self.get_line_matches(line, linenum, fetch_only_one=True):
                     if self.repo.belongs_to(datatype=match_type, data=match, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
                         yield(line)
                         logging.debug("'%s' matches filter %s", match, match_type) 
@@ -299,7 +300,7 @@ class FeedFilter:
         for line in self.get_filtered_lines():
             self.outfile.write(line)
 
-    def _get_line_matches(self, line, line_num, fetch_only_one=False):
+    def get_line_matches(self, line, line_num, fetch_only_one=False):
         try:
             match = False
             for cell in list(csv.reader([line], delimiter=self.delim))[0]:
