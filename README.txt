@@ -158,8 +158,9 @@ XML parsing. If this might be useful, let me know
 Acknowledgements
 ================
 
-Peteris Krumins (peter@catonmat.net) for his no-fuss interface to adns.
-Made one very slight tweak to return multiple A records.
+Rob Lowe for the concept
 
-http://www.catonmat.net/blog/asynchronous-dns-resolution/
+Peteris Krumins (http://www.catonmat.net/blog/asynchronous-dns-resolution/)
+for his no-fuss interface to adns. Made one very slight tweak to return 
+multiple A records rather than just the first.
 
