@@ -2,62 +2,63 @@
 netgrep
 =======
 
-Netgrep is a command line tool for filtering files based on country code and
-Autonomous System Number (ASN). It will parse a text file, and then:
+Netgrep is a command line tool which tells you which lines in a text file
+contain network resources related to a particular country or Autonomous
+Network (AS).
 
-- match all domain names, URLs, email addresses and IP addresses
+Given input, it will:
+
+- locate domain names and IP addresses
 - resolve domains to IP addresses
-- geo-locate IP addresses
-- find domain name countries based on TLD
+- geo-locate IP addresses to country codes and ASNs
+- extract country codes from domain names 
 - output each line matching at least one country code or ASN specified.
 
-Basic usage
------------
+Example usage
+-------------
 
-Input file: input1.txt
+# a simple log file
 
+$ cat mylog.txt
 abc.net.au,Australian Broadcasting Corporation
 bbc.co.uk,British Broadcasting Corporation
 203.2.218.214,Australian Broadcasting Corporation IP address
 
-Command:
-
 # match Australian IPs and domain names
 
-$ netgrep AU input1.txt
+$ netgrep AU mylog.txt
 abc.net.au,Australian Broadcasting Corporation
 203.2.218.214,Australian Broadcasting Corporation IP address
 
 # match IPs resolving to Autonomous System 2818, owned by BBC
 
-$ netgrep AS2818 input1.txt
+$ netgrep AS2818 mylog.txt
 bbc.co.uk,British Broadcasting Corporation
 
 # match both Australian IPs / domains and AS2818
 
-$ netgrep AU,AS2818 input1.txt
+$ netgrep AU,AS2818 mylog.txt
 abc.net.au,Australian Broadcasting Corporation
 bbc.co.uk,British Broadcasting Corporation
 203.2.218.214,Australian Broadcasting Corporation IP address
 
-Further usage notes are available via --help
-
 Advanced usage
 --------------
 
-Multiple files
+* Multiple files
 
 You can use wildcards or pass in multiple files:
 
+$ netgrep AS444 logs/firstlog.txt logs/secondlog.txt
+...
 $ netgrep AS444 logs/*.txt
+...
 
-Note that if you pass in multiple files, they may be in different formats.
-Netgrep will try to guess what kind of delimiters are used in each.  However, 
-you can only select one --delim, --format, or --has_headers for all files.
+Note the netgrep can't handle recursive subdirectories as yet.
 
-Standard input
+* Piping standard input
 
-netgrep supports piping from standard input like this:
+Netgrep supports piping from standard input like this:
 
 $ cat input1.txt | netgrep BR
 
@@ -66,37 +67,46 @@ akamai.com resolve to any boxes in Singapore?
 
 $ echo "akamai.com" | netgrep SG
 akamai.com  
+$
 # got output - assertion proven
 
 $ echo "akamai.com" | netgrep FI
 $ 
 # no output - assertion failed
 
-netgrep tries to guess how your file is delimited. This isn't foolproof, so
-you can override it with --format and --delim, e.g.
-
-$ netgrep -i input1.txt --format=CSV AU
-...
-$ netgrep -i input2.txt --format=delim --delim=\| AU
-...
-
 Installation
 ============
 
-Prereqs:
+You'll need:
 
-pip install publicsuffix
-pip install httplib2
-pip install BulkWhois
+adns
+Python libraries:
+  BulkWhois
+  publicsuffix
+  adns-python
 
-adns for your platform. 
-OS X: brew install adns
-      pip install adns-python
-Linux / aptitude: apt-get install python-adns
+Here's some OS-specific ways to install it:
 
-Then:
+* Linux install with apt-get:
 
-python setup.py install
+sudo apt-get install python-pip git gcc python-dev python-adns
+sudo pip install -e git://github.com/csirtfoundry/netgrep/netgrep.git#egg=netgrep
+
+* OS X install:
+
+brew install git
+brew install adns
+sudo easy_install pip
+sudo pip install -e git://github.com/csirtfoundry/netgrep/netgrep.git#egg=netgrep
+
+* Or, download and extract the tarball and then:
+
+sudo python setup.py install
+
+* Windows
+
+Untested, and suspect it may not work. If you like to report how it did or
+didn't work, please let me know.
 
 Installation issues:
 --------------------
@@ -112,6 +122,25 @@ Modify python2.7 for your version of Python, of course.
 Implementation notes
 ====================
 
+1. Netgrep makes one pass of the logs, extracting any candidate domain name and 
+IP addresses it finds.
+
+2. Domain names are checked to see if they resolve to a TLD present in the
+Mozilla Public Suffix List. Anything not matching is ignored.
+
+3. IP addresses are checked to ensure they're valid IPv4. IPv6 is currently
+not supported, but there are plans to do this.
+
+4. Domains are resolved to IP addresses asynchronously. This should be quite
+fast for anything in the low hundreds, but may take a little time if you have
+thousands.
+
+5. All IPs gathered both directly from the log and via DNS resolution are
+submitted via bulk query to Team Cymru's bulk whois service, retrieving
+country code and ASN.
+
+6. The file is scanned, the country code and ASN filters applied, and matching
+lines are output.
 
 Limitations
 -----------
