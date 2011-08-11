@@ -319,7 +319,7 @@ class FeedFilter:
 
     def get_tld(self, domain):
         suffix = self.psl.get_public_suffix(domain)
-        logging.info("Domain fetched: %s", suffix)
+        logging.debug("Domain fetched: %s", suffix)
         return suffix
 
     def _is_valid_ip(self, ip):
