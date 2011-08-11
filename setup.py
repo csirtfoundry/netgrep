@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='netgrep',
-    version='0.3.0',
+    version='0.3.1',
     author='CSIRT Foundry / Chris Horsley',
     author_email='chris.horsley@csirtfoundry.com',
     scripts=['bin/netgrep'],
