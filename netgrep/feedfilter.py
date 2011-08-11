@@ -8,6 +8,7 @@ import sys
 from bulkwhois.cymru import BulkWhoisCymru
 from async_dns import AsyncResolver
 from publicsuffix import PublicSuffixList
+#import tldextract
 import httplib2
 import tempfile
 import logging
@@ -143,7 +144,6 @@ class FeedFilter:
 
     def __init__(self, **kwargs):
         """ args - passed in by optparse """
-        self.delim = None
         self.cc_filters = []
         self.asn_filters = []
         self.format = None
@@ -182,15 +182,18 @@ class FeedFilter:
         self.parse_args(**kwargs)
 
     def _get_psl_file(self):
+        """ returns Public Suffix List as a list of lines in the PSL """
         url = 'http://mxr.mozilla.org/mozilla-central/source/netwerk/dns/effective_tld_names.dat?raw=1'
-        headers = {'cache-control': 'max-age=%d' % (60*60*24)}
+        headers = {'cache-control': 'max-age=%d' % (60*60*24*7)}
         http = httplib2.Http(tempfile.gettempdir())
         response, content = http.request(url, headers=headers)
-        return content
+
+        #return content
+        return content.split("\n")
 
     def parse_args(self, infile=sys.stdin, outfile=sys.stdout, verbose=False, 
                    verboser=False, quiet=False, has_header=False, 
-                   format=None, filter=None, delim=None):
+                   format=None, filter=None):
         
         def create_stdin_temp_file():
             f = tempfile.NamedTemporaryFile()
@@ -221,21 +224,6 @@ class FeedFilter:
         else:
             self.infile = infile
 
-        if format and format != "delim" and delim:
-            logging.warn("Warning: you've set both --format and --delim."+ 
-                         " Using delimiter '%s' in --delim" % delim)
-            self.delim = delim
-        elif delim and str(delim):
-            self.delim = delim
-        elif format == "CSV":
-            self.delim = ","
-        elif format == "TSV":
-            self.delim = "\t"
-        else:
-            self.delim = self._guess_delim()
-
-        logging.info("I guess your delimiter as '%s'", self.delim)
-
         for filt in filter.split(','):
             for m in re.findall("^(?:AS)?(\d+)$", filt):
                 self.asn_filters.append(m.upper())
@@ -251,18 +239,6 @@ class FeedFilter:
             logging.info("  ASN: %s" % (", ".join(self.asn_filters)))
         if self.cc_filters:
             logging.info("  Country codes: %s" % (", ".join(self.cc_filters)))
-
-    def _guess_delim(self):
-        sniffer = csv.Sniffer()
-        self.infile.seek(0)
-        sample = self.infile.read(2048)
-        self.infile.seek(0)
-        try:
-            delim = sniffer.sniff(sample, "\t |,").delimiter
-        except csv.Error:
-            # out of ideas, only one field? Set to ','
-            delim = ","
-        return delim
 
     def domains_to_ips(self):
         ar = AsyncResolver([domain_data["domain"] for domain_data in self.repo.get_domain_data()])
@@ -281,7 +257,12 @@ class FeedFilter:
             if self.has_header and linenum == 0:
                 pass
             for (match_type, match) in self.get_line_matches(line, linenum):
-                self.repo.add(match_type, match)
+                #self.repo.add(match_type, match)
+                yield(match_type, match)
+
+    def extract_and_store_matches(self):
+        for match_type, match in self.extract_matches():
+            self.repo.add(match_type, match)
 
     def get_filtered_lines(self):
         self.infile.seek(0)
@@ -290,7 +271,7 @@ class FeedFilter:
             if self.has_header and linenum == 0:
                 yield(line)
             else:
-                for match_type, match in self.get_line_matches(line, linenum, fetch_only_one=True):
+                for match_type, match in self.get_line_matches(line, linenum):
                     if self.repo.belongs_to(datatype=match_type, data=match, asn_filters=self.asn_filters, cc_filters=self.cc_filters):
                         yield(line)
                         logging.debug("'%s' matches filter %s", match, match_type) 
@@ -303,27 +284,25 @@ class FeedFilter:
     def get_line_matches(self, line, line_num, fetch_only_one=False):
         try:
             match = False
-            for cell in list(csv.reader([line], delimiter=self.delim))[0]:
-                cell = cell.strip()
-                for m_key, m_dict in self.matchers.items():
-                    if "chk_func" in m_dict and "rex" in m_dict:
-                        for m in re.findall(m_dict["rex"], cell):
-                            if m_dict["chk_func"](m):
-                                match = True
-                                logging.debug("matched 'm' as")
-                                yield((m_dict["type"], m))
-                            if match and fetch_only_one:
-                                break
-                    elif "chk_func" in m_dict and m_dict["chk_func"](cell):
-                        match = True
-                        yield((m_dict["type"], cell))
-                    elif "rex" in m_dict:
-                        for m in re.findall(m_dict["rex"], cell):
+            for m_key, m_dict in self.matchers.items():
+                if "chk_func" in m_dict and "rex" in m_dict:
+                    for m in re.findall(m_dict["rex"], line):
+                        if m_dict["chk_func"](m):
                             match = True
+                            logging.debug("matched '%s' as %s" % (m, m_key))
                             yield((m_dict["type"], m))
+                        if match and fetch_only_one:
+                            break
+                elif "chk_func" in m_dict and m_dict["chk_func"](line):
+                    match = True
+                    yield((m_dict["type"], line))
+                elif "rex" in m_dict:
+                    for m in re.findall(m_dict["rex"], line):
+                        match = True
+                        yield((m_dict["type"], m))
                 if match and fetch_only_one:
                     break
-        except csv.Error as e:
+        except csv.Error:
             logging.warn("Error parsing line %d, skipping" % line_num)
 
 
@@ -335,17 +314,19 @@ class FeedFilter:
             return None
         else:
             # using this PSL, known TLDs return at least one .
-            return self._get_tld(domain).find(".") >= 0
+            return self.get_tld(domain).find(".") >= 0
 
 
-    def _get_tld(self, domain):
-        return self.psl.get_public_suffix(domain)
+    def get_tld(self, domain):
+        suffix = self.psl.get_public_suffix(domain)
+        logging.info("Domain fetched: %s", suffix)
+        return suffix
 
     def _is_valid_ip(self, ip):
         for family in (socket.AF_INET, socket.AF_INET6):
             try:
                 socket.inet_pton(family, ip)
-            except Exception as e:
+            except Exception:
                 pass
             else:
                 return True
@@ -370,14 +351,14 @@ class FeedFilter:
 
     def add_domain_ccs(self):
         for domain_data in self.repo.get_domain_data():
-            tld = self._get_tld(domain_data["domain"])
+            tld = self.get_tld(domain_data["domain"])
             if tld:
                 self.repo.add_domain_cc(domain_data["domain"], cc=(tld.split(".")[-1]))
 
     def process_file(self):
         stime = time.time()
         logging.info("Extracting matches")
-        self.extract_matches()
+        self.extract_and_store_matches()
         logging.debug("Got matches " + str(time.time() - stime))
         if self.repo.get_domain_count() > 0:
             logging.info("Resolving " + str(self.repo.get_domain_count()) + " unique domains")
