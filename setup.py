@@ -1,13 +1,15 @@
-from distutils.core import setup
+#from distutils.core import setup
+from setuptools import setup, find_packages
 
 setup(
     name='netgrep',
-    version='0.2.1',
+    version='0.3.0',
     author='CSIRT Foundry / Chris Horsley',
     author_email='chris.horsley@csirtfoundry.com',
-    packages=['netgrep'],
     scripts=['bin/netgrep'],
     url='http://pypi.python.org/pypi/netgrep/',
+    packages=find_packages(),
+    #packages=['netgrep'],
     install_requires=[
         'publicsuffix',
         'httplib2',
