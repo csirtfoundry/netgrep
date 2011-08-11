@@ -14,7 +14,7 @@ setup(
         'publicsuffix',
         'httplib2',
         'BulkWhois',
-        'adns',
+        'adns-python',
     ],
     download_url='https://github.com/csirtfoundry/netgrep/tarball/master',
     license='LICENSE.txt',
