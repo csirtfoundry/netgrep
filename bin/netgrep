@@ -10,12 +10,6 @@ def get_args():
                 description="Filter logs based on country codes or ASNs.", 
                 epilog="Example usage: cat mylog | %s AU,AS1111 \
                        "  % sys.argv[0])
-    parser.add_argument('-fmt', '--format', choices=['CSV','TSV','delim'], 
-                        help="Format of input file: chose CSV, TSV or specify \
-                              delim with --delim=x for a custom delimiter")
-    parser.add_argument('-d', '--delim', 
-                        help="If you have a delimited file, specify the \
-                              delimeter e.g. \| ")
     parser.add_argument('-hh', '--has_header', action="store_true",
                         help="First line is a header, don't filter out.")
     parser.add_argument('-o', '--outfile', type=argparse.FileType("w"), default=sys.stdout,
@@ -49,10 +43,8 @@ def main():
     args = get_args()
     for file in args.infile:
         feedfilter = FeedFilter(
-                format=args.format,
                 infile=file,
                 outfile=args.outfile,
-                delim=args.delim,
                 has_header=args.has_header,
                 verbose=args.verbose,
                 verboser=args.verboser,
