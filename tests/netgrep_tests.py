@@ -4,8 +4,9 @@
 import unittest
 from netgrep.feedfilter import FeedFilter
 import tempfile
+import sys
 
-class filter_test(unittest.TestCase):
+class extract_resolve_test(unittest.TestCase):
     """ 
         since we're looking up domains and IP locations live, we can't guarantee
         consistent test results. I've tried to pick domains and IP I think are
@@ -104,7 +105,7 @@ class filter_test(unittest.TestCase):
         self.count_matches(ng, 1)
 
 
-class delim_guess(unittest.TestCase):
+class extraction_test(unittest.TestCase):
 
     def set_input(self, data):
         self.fh.write(data)
@@ -115,51 +116,56 @@ class delim_guess(unittest.TestCase):
     def tearDown(self):
         self.fh.close()
 
-    def assert_delim(self, delim, correct_delim):
+    def assert_matches(self, matches, correct_matches):
+        #for line, linenum in enumerate(ng.infile.readline()):
+        #    sys.stderr.write(line)
+        #    matches.append(list(ng.extract_line_matches(line, linenum)))
+        #    print matches
+        #    print correct_matches
         try:
-            assert(delim == correct_delim)
-        except AssertionError, e:
-            raise AssertionError, "Expected delim '%s', got '%s'" % (correct_delim, delim)
+            #assert(list(matches))
+            assert(matches == correct_matches)
+        except AssertionError:
+            raise AssertionError, (correct_matches, matches)
+            #raise AssertionError, "Expected extraction [%s], got [%s]" % (", ".join("-".join(correct_matches)), ", ".join("-".join(matches)))
 
     def test_comma_sep(self):
         self.set_input("1.1.1.1,2.2.2.2,3.3.3.3")
         ng = FeedFilter(filter="AU", infile=self.fh)
-        self.assert_delim(ng.delim, ",")
+        matches = list(ng.extract_matches())
+        self.assert_matches(matches, [("ip", "1.1.1.1"), ("ip", "2.2.2.2"), ("ip", "3.3.3.3")])
 
     def test_comma_sep_with_quotes(self):
         self.set_input("'1.1.1.1','2.2.2.2','3.3.3.3'")
         ng = FeedFilter(filter="AU", infile=self.fh)
-        self.assert_delim(ng.delim, ",")
+        matches = list(ng.extract_matches())
+        self.assert_matches(matches, [("ip", "1.1.1.1"), ("ip", "2.2.2.2"), ("ip", "3.3.3.3")])
 
     def test_comma_sep_with_spaces(self):
         self.set_input("1.1.1.1     ,    http://www.space.com     ,     Telephone network")
         ng = FeedFilter(filter="AU", infile=self.fh)
-        self.assert_delim(ng.delim, ",")
+        matches = list(ng.extract_matches())
+        self.assert_matches(matches, [("ip", "1.1.1.1"), ("domain", "www.space.com")])
 
-    def test_pipe_sep_with_spaces(self):
-        # TODO: fails on a single line of input, works it out with two
+    def test_multi_line(self):
         self.set_input("1.1.1.1     |    http://www.space.com     |     Telephone network\n \
                         2.2.2.2     |    http://nextsite.com      |     ISP")
         ng = FeedFilter(filter="AU", infile=self.fh)
-        self.assert_delim(ng.delim, "|")
+        matches = list(ng.extract_matches())
+        self.assert_matches(matches, [("ip", "1.1.1.1"), ("domain", "www.space.com"), ("ip", "2.2.2.2"), ("domain", "nextsite.com")])
 
-    def test_multi_char_delim(self):
-        # TODO: fails on a single line of input, works it out with two
-        self.set_input("1.1.1.1~~http://www.space.com~~Telephone network")
+    def test_email_addy(self):
+        self.set_input("a@sample.com")
         ng = FeedFilter(filter="AU", infile=self.fh)
-        self.assert_delim(ng.delim, "~~")
+        matches = list(ng.extract_matches())
+        self.assert_matches(matches, [("domain", "sample.com")])
 
-    def test_many_escaped_fake_delims(self):
-        self.set_input("'1\,1\,1\,1'\t'2\,2\,2\,2'")
+    def test_fake_tld(self):
+        # we shouldn't extract domains that aren't domains
+        self.set_input("not.a.domainatall")
         ng = FeedFilter(filter="AU", infile=self.fh)
-        self.assert_delim(ng.delim, "\t")
-
-    def test_guessed_delim_override(self):
-        # by right, this should auto-guess the delmiter as ','.
-        # make sure our manual override works.
-        self.set_input("1,1,1,1\t2,2,2,2")
-        ng = FeedFilter(filter="AU", infile=self.fh, delim='\t')
-        self.assert_delim(ng.delim, "\t")
+        matches = list(ng.extract_matches())
+        self.assert_matches(matches, [])
 
 
 if __name__ == "__main__":
