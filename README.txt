@@ -85,19 +85,19 @@ Python libraries:
   publicsuffix
   adns-python
 
-Here's some OS-specific ways to install it:
+Here's some OS-specific ways to install the latest stable build from PyPI:
 
 * Linux install with apt-get:
 
-sudo apt-get install python-pip git gcc python-dev python-adns
-sudo pip install -e git://github.com/csirtfoundry/netgrep/netgrep.git#egg=netgrep
+sudo apt-get install python-pip git gcc python-dev python-adns libadns1-dev
+sudo pip install netgrep
 
 * OS X install:
 
 brew install git
 brew install adns
 sudo easy_install pip
-sudo pip install -e git://github.com/csirtfoundry/netgrep/netgrep.git#egg=netgrep
+sudo pip install netgrep
 
 * Or, download and extract the tarball and then:
 
