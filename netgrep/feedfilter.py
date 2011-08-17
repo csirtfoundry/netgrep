@@ -163,21 +163,15 @@ class FeedFilter:
             "chk_func": self._is_valid_ip,
             "type": "ip",
         }
-        #self.matchers["uri"] = {
-        #    "rex": "(?:(?:\w+)://)(?![^/@]+?@)?([^\/\s]+)",
-        #    "type": "domain",
-        #}
         self.matchers["hostname"] = {
             "rex": "([a-zA-Z0-9\-\.]+\.[0-9a-zA-Z\-\.]+)(?:\d+)?",
             "chk_func": self._is_valid_domain,
             "type": "domain",
         }
-        #self.matchers["email"] = {
-        #    "rex": ".*\@([\w\-\.]+)",
-        #    "type": "domain",
-        #}
-
+         
+        logging.info("Getting Public Suffix List")
         self.psl = PublicSuffixList(self._get_psl_file())
+        logging.info("Got Public Suffix List")
 
         self.parse_args(**kwargs)
 
@@ -188,7 +182,6 @@ class FeedFilter:
         http = httplib2.Http(tempfile.gettempdir())
         response, content = http.request(url, headers=headers)
 
-        #return content
         return content.split("\n")
 
     def parse_args(self, infile=sys.stdin, outfile=sys.stdout, verbose=False, 

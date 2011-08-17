@@ -1,9 +1,8 @@
-#from distutils.core import setup
 from setuptools import setup, find_packages
 
 setup(
     name='netgrep',
-    version='0.3.4',
+    version='0.3.5',
     author='CSIRT Foundry / Chris Horsley',
     author_email='chris.horsley@csirtfoundry.com',
     scripts=['bin/netgrep'],

@@ -14,6 +14,12 @@ Given input, it will:
 - extract country codes from domain names 
 - output each line matching at least one country code or ASN specified.
 
+Use case
+--------
+
+You have a big list of infected botnet clients, URLs, or IP addresses, and you
+want to find out which ones are related to your country code or AS.
+
 Example usage
 -------------
 
@@ -23,6 +29,12 @@ $ cat mylog.txt
 abc.net.au,Australian Broadcasting Corporation
 bbc.co.uk,British Broadcasting Corporation
 203.2.218.214,Australian Broadcasting Corporation IP address
+xs4all.com,Hosted in Netherlands with .com extension
+
+# match anything hosted in .nl
+
+$ netgrep NL mylog.txt
+xs4all.com,Hosted in Netherlands with .com extension
 
 # match Australian IPs and domain names
 
@@ -35,7 +47,7 @@ abc.net.au,Australian Broadcasting Corporation
 $ netgrep AS2818 mylog.txt
 bbc.co.uk,British Broadcasting Corporation
 
-# match both Australian IPs / domains and AS2818
+# combination filter with both Australian IPs / domains and AS2818
 
 $ netgrep AU,AS2818 mylog.txt
 abc.net.au,Australian Broadcasting Corporation
@@ -54,7 +66,7 @@ $ netgrep AS444 logs/firstlog.txt logs/secondlog.txt
 $ netgrep AS444 logs/*.txt
 ...
 
-Note the netgrep can't handle recursive subdirectories as yet.
+(Note the netgrep can't handle recursive subdirectories as yet.)
 
 * Piping standard input
 
@@ -77,47 +89,23 @@ $
 Installation
 ============
 
-You'll need:
+Quick install:
+--------------
 
-adns
-Python libraries:
-  BulkWhois
-  publicsuffix
-  adns-python
+Method 1
 
-Here's some OS-specific ways to install the latest stable build from PyPI:
+The use of the pip Python package manager, is recommended:
 
-* Linux install with apt-get:
+$ sudo pip install netgrep
 
-sudo apt-get install python-pip git gcc python-dev python-adns libadns1-dev
-sudo pip install netgrep
+Method 2
 
-* OS X install:
+If you don't want to use pip, you can extract the tarball from 
+https://github.com/csirtfoundry/netgrep/tarball/master and then:
 
-brew install git
-brew install adns
-sudo easy_install pip
-sudo pip install netgrep
+$ sudo python setup.py install
 
-* Or, download and extract the tarball and then:
-
-sudo python setup.py install
-
-* Windows
-
-Untested, and suspect it may not work. If you like to report how it did or
-didn't work, please let me know.
-
-Installation issues:
---------------------
-
-When installing adns-python, you may receive:
-
-adnsmodule.c:8:20: fatal error: Python.h: No such file or directory
-
-sudo apt-get install python2.7-dev
-
-Modify python2.7 for your version of Python, of course.
+See INSTALL.txt for more detail install instructions and troubleshooting.
 
 Implementation notes
 ====================
@@ -129,10 +117,10 @@ IP addresses it finds.
 Mozilla Public Suffix List. Anything not matching is ignored.
 
 3. IP addresses are checked to ensure they're valid IPv4. IPv6 is currently
-not supported, but there are plans to do this.
+not supported, but there are plans to do add this later.
 
 4. Domains are resolved to IP addresses asynchronously. This should be quite
-fast for anything in the low hundreds, but may take a little time if you have
+fast for hundreds of IP addresses, but may take a little time if you have
 thousands.
 
 5. All IPs gathered both directly from the log and via DNS resolution are
@@ -142,14 +130,15 @@ country code and ASN.
 6. The file is scanned, the country code and ASN filters applied, and matching
 lines are output.
 
-Limitations
+Other notes
 -----------
 
 * This initial release is focusing on functionality rather than performance for
-matching. It's nowhere near as efficient as mighty grep: 
+matching. Because of the network lookups it uses, it's not going to be anywhere
+near as fast as mighty grep: 
 http://lists.freebsd.org/pipermail/freebsd-current/2010-August/019310.html?
 * Pains have been taken to keep the memory footprint low and network calls
-asynchronous / bulk where possible, though.
+asynchronous / bulk where possible.
 * netgrep only handles one record per line for now, so that means no multiline
 XML parsing. If this might be useful, let me know 
 [chris.horsley at csirtfoundry dot com].
