@@ -94,18 +94,66 @@ Quick install:
 
 Method 1
 
-The use of the pip Python package manager, is recommended:
-
-$ sudo pip install netgrep
+1. Make sure you have adns installed. 
+2. $ sudo easy_install netgrep
 
 Method 2
 
-If you don't want to use pip, you can extract the tarball from 
-https://github.com/csirtfoundry/netgrep/tarball/master and then:
+1. Make sure you have adns installed
+2. Extract the tarball from 
+https://github.com/csirtfoundry/netgrep/tarball/master
+3. cd [directory it was unpacked to]
+4. $ sudo python setup.py install
 
+Detailed install:
+-----------------
+
+If the above didn't work out of the box, here's what you can do.
+
+You'll need:
+
+adns (http://www.chiark.greenend.org.uk/~ian/adns/)
+Python libraries:
+  BulkWhois
+  publicsuffix
+  adns-python
+
+Here's some OS-specific ways to install the prerequisites and netgrep,
+assuming a clean system:
+
+* 1: Linux install with apt-get:
+
+$ sudo apt-get install python-setuptools gcc python-dev python-adns
+$ sudo easy_install netgrep
+
+* 2: OS X install:
+
+Using homebrew (or your choice of package manager):
+
+Install Xcode (needed for building lots of Homebrew packages)
+$ brew install adns
+$ sudo easy_install pip
+$ sudo pip install netgrep
+
+* 3: Download and extract the tarball and then (with apt-get):
+
+$ sudo apt-get install gcc python-dev python-setuptools python-adns
 $ sudo python setup.py install
 
-See INSTALL.txt for more detail install instructions and troubleshooting.
+* Windows
+
+Untested, and suspect it may not work. If you like to report how it did or
+didn't work, please let me know.
+
+Installation issues:
+--------------------
+
+When installing adns-python, you may receive:
+
+adnsmodule.c:8:20: fatal error: Python.h: No such file or directory
+
+sudo apt-get install python-dev
+
 
 Implementation notes
 ====================

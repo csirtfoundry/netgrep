@@ -13,6 +13,7 @@ setup(
         'httplib2>=0.6.0',
         'BulkWhois>=0.2.1',
         'adns-python>=1.2.1',
+        'argparse',
     ],
     download_url='https://github.com/csirtfoundry/netgrep/tarball/master',
     license='LICENSE.txt',

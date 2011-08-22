@@ -6,9 +6,9 @@ Quick install:
 
 Method 1
 
-The use of the pip Python package manager, is recommended:
+Use of easy_install / pip is recommended:
 
-$ sudo pip install netgrep
+$ sudo easy_install netgrep
 
 Method 2
 
@@ -30,12 +30,13 @@ Python libraries:
   publicsuffix
   adns-python
 
-Here's some OS-specific ways to install the prerequisites and netgrep:
+Here's some OS-specific ways to install the prerequisites and netgrep,
+assuming a clean system:
 
 * 1: Linux install with apt-get:
 
-$ sudo apt-get install python-pip git gcc python-dev python-adns libadns1-dev
-$ sudo pip install netgrep
+$ sudo apt-get install python-setuptools gcc python-dev python-adns
+$ sudo easy_install netgrep
 
 * 2: OS X install:
 
@@ -48,8 +49,8 @@ $ sudo pip install netgrep
 
 * 3: Download and extract the tarball and then (with apt-get):
 
-sudo apt-get install gcc python-dev python-setuptools libadns1-dev
-sudo python setup.py install
+$ sudo apt-get install gcc python-dev python-setuptools python-adns
+$ sudo python setup.py install
 
 * Windows
 
