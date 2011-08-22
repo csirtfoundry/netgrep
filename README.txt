@@ -66,7 +66,7 @@ $ netgrep AS444 logs/firstlog.txt logs/secondlog.txt
 $ netgrep AS444 logs/*.txt
 ...
 
-(Note the netgrep can't handle recursive subdirectories as yet.)
+(Note that netgrep can't handle recursive subdirectories as yet.)
 
 * Piping standard input
 
