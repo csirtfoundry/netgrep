@@ -1,0 +1,234 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Netgrep by csirtfoundry</title>
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="javascripts/main.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+  </head>
+  <body>
+
+      <header>
+        <h1>Netgrep</h1>
+        <p>Filter files based on country code and ASN of IPs and domain names.</p>
+      </header>
+
+      <div id="banner">
+        <span id="logo"></span>
+
+        <a href="https://github.com/csirtfoundry/netgrep" class="button fork"><strong>Fork On GitHub</strong></a>
+        <div class="downloads">
+          <span>Downloads:</span>
+          <ul>
+            <li><a href="https://github.com/csirtfoundry/netgrep/zipball/master" class="button">ZIP</a></li>
+            <li><a href="https://github.com/csirtfoundry/netgrep/tarball/master" class="button">TAR</a></li>
+          </ul>
+        </div>
+
+      </div><!-- end banner -->
+
+    <div class="wrapper">
+      <nav>
+        <ul></ul>
+      </nav>
+      <section>
+        <p>Netgrep is a command line tool which tells you which lines in a text file
+contain network resources related to a particular country or Autonomous
+Network (AS).</p>
+
+<p>Send in a long file, and it will:</p>
+
+<ul>
+<li>automatically detect domain names and IP addresses</li>
+<li>resolve domains to IP addresses</li>
+<li>geo-locate IP addresses to country codes and ASNs</li>
+<li>extract country codes from domain names</li>
+<li>output each line matching at least one country code or ASN specified.</li>
+</ul><h2>Use case</h2>
+
+<p>You have a big list of infected botnet clients, URLs, or IP addresses, and you
+want to find out which ones are related to your country code or AS.</p>
+
+<p>Files don't need to be in any particular format. Netgrep will make a best effort to find and locate anything which looks like a network resource, then find out where the domain and hosting lives.</p>
+
+<h2>Example usage</h2>
+
+<h3>Example usage</h3>
+
+<pre><code># a simple log file
+
+$ cat mylog.txt
+abc.net.au,Australian Broadcasting Corporation (ABC)
+bbc.co.uk,British Broadcasting Corporation (BBC)
+203.2.218.214,ABC IP address
+xs4all.com,Hosted in Netherlands with .com extension
+
+# match anything hosted in .nl
+
+$ netgrep NL mylog.txt
+xs4all.com,Hosted in Netherlands with .com extension
+
+# match Australian IPs and domain names
+
+$ netgrep AU mylog.txt
+abc.net.au,Australian Broadcasting Corporation (ABC)
+203.2.218.214,ABC IP address
+
+# match IPs resolving to Autonomous System 2818, owned by BBC
+
+$ netgrep AS2818 mylog.txt 
+bbc.co.uk,British Broadcasting Corporation
+
+# combination filter with both Australian IPs / domains and AS2818
+
+$ netgrep AU,AS2818 mylog.txt
+abc.net.au,Australian Broadcasting Corporation (ABC)
+bbc.co.uk,British Broadcasting Corporation (BBC)
+203.2.218.214,ABC IP address
+</code></pre>
+
+<h3>Advanced usage</h3>
+
+<h4>Multiple files</h4>
+
+<p>You can use wildcards or pass in multiple files:</p>
+
+<pre><code>$ netgrep AS444 logs/firstlog.txt logs/secondlog.txt
+...
+$ netgrep AS444 logs/*.txt
+...
+</code></pre>
+
+<p>(Note that netgrep can't handle recursive subdirectories as yet.)</p>
+
+<h4>Piping standard input</h4>
+
+<p>Netgrep supports piping from standard input like this:</p>
+
+<pre><code>$ cat input1.txt | netgrep BR
+</code></pre>
+
+<p>You can use netgrep as a quick little assertion tool. For example, does
+akamai.com resolve to any boxes in Singapore?</p>
+
+<pre><code>$ echo "akamai.com" | netgrep SG
+akamai.com  
+$
+# got output - assertion proven
+
+$ echo "akamai.com" | netgrep FI
+$ 
+# no output - assertion failed
+</code></pre>
+
+<h2>Installation</h2>
+
+<h3>Quick install:</h3>
+
+<h4>Method 1</h4>
+
+<ol>
+<li>Make sure you have adns installed. </li>
+<li><code>$ sudo easy_install netgrep</code></li>
+</ol><h4>Method 2</h4>
+
+<ol>
+<li>Make sure you have adns installed</li>
+<li>Extract the tarball from <a href="https://github.com/csirtfoundry/netgrep/tarball/master">https://github.com/csirtfoundry/netgrep/tarball/master</a></li>
+<li><code>cd [directory it was unpacked to]</code></li>
+<li><code>$ sudo python setup.py install</code></li>
+</ol><h3>Detailed install:</h3>
+
+<p>If the above didn't work out of the box, here's what you can do.</p>
+
+<p>You'll need:</p>
+
+<ul>
+<li>adns (<a href="http://www.chiark.greenend.org.uk/~ian/adns/">http://www.chiark.greenend.org.uk/~ian/adns/</a>)</li>
+<li>Python libraries:
+
+<ul>
+<li>BulkWhois</li>
+<li>publicsuffix</li>
+<li>adns-python</li>
+</ul>
+</li>
+</ul><p>Here's some OS-specific ways to install the prerequisites and netgrep, assuming a clean system:</p>
+
+<h4>1: Linux install with apt-get:</h4>
+
+<pre><code>$ sudo apt-get install python-setuptools gcc python-dev python-adns
+$ sudo easy_install netgrep
+</code></pre>
+
+<h4>2: OS X install:</h4>
+
+<p>Using homebrew (or your choice of package manager):</p>
+
+<p>Install Xcode (needed for building lots of Homebrew packages)</p>
+
+<pre><code>$ brew install adns
+$ sudo easy_install pip
+$ sudo pip install netgrep
+</code></pre>
+
+<h4>3: Download and extract the tarball and then (with apt-get):</h4>
+
+<pre><code>$ sudo apt-get install gcc python-dev python-setuptools python-adns
+$ sudo python setup.py install
+</code></pre>
+
+<h4>Windows</h4>
+
+<p>Untested, and suspect it may not work. If you like to report how it did or didn't work, please let me know.</p>
+
+<h3>Installation issues:</h3>
+
+<p>When installing adns-python, you may receive:</p>
+
+<pre><code>adnsmodule.c:8:20: fatal error: Python.h: No such file or directory
+</code></pre>
+
+<p>In that case:</p>
+
+<pre><code>sudo apt-get install python-dev
+</code></pre>
+
+<h2>How it works</h2>
+
+<ol>
+<li>Netgrep makes one pass of the logs, extracting any candidate domain name and IP addresses it finds.</li>
+<li>Domain names are checked to see if they resolve to a TLD present in the Mozilla Public Suffix List. Anything not matching is ignored.</li>
+<li>IP addresses are checked to ensure they're valid IPv4. IPv6 is currently not supported, but there are plans to do add this later.</li>
+<li>Domains are resolved to IP addresses asynchronously. This should be quite fast for hundreds of IP addresses, but may take a little time if you have thousands.</li>
+<li>All IPs gathered both directly from the log and via DNS resolution are submitted via bulk query to Team Cymru's bulk whois service, retrieving country code and ASN.</li>
+<li>The file is scanned, the country code and ASN filters applied, and matching lines are output.</li>
+</ol><h2>Other notes</h2>
+
+<ul>
+<li>This initial release is focusing on functionality rather than performance for matching. Because of the network lookups it uses, it's not going to be anywhere near as fast as mighty grep: 
+<a href="http://lists.freebsd.org/pipermail/freebsd-current/2010-August/019310.html">http://lists.freebsd.org/pipermail/freebsd-current/2010-August/019310.html</a>?</li>
+<li>Pains have been taken to keep the memory footprint low and network calls asynchronous / bulk where possible.</li>
+<li>netgrep only handles one record per line for now, so that means no multiline XML parsing. If this might be useful, let me know [chris.horsley at csirtfoundry dot com].</li>
+</ul><h2>Acknowledgements</h2>
+
+<p>Rob Lowe for the concept</p>
+
+<p>Peteris Krumins (<a href="http://www.catonmat.net/blog/asynchronous-dns-resolution/">http://www.catonmat.net/blog/asynchronous-dns-resolution/</a>) for his no-fuss interface to adns. Made one very slight tweak to return multiple A records rather than just the first.</p>
+      </section>
+      <footer>
+        <p>Project maintained by <a href="https://github.com/csirtfoundry">csirtfoundry</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://twitter.com/#!/michigangraham">mattgraham</a></small></p>
+      </footer>
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><!--<![endif]-->
+  </body>
+</html>
